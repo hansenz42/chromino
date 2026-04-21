@@ -1,0 +1,722 @@
+[
+  {
+    "id": 0,
+    "cells": [
+      "red",
+      "red",
+      "red"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 1,
+    "cells": [
+      "red",
+      "red",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 2,
+    "cells": [
+      "red",
+      "red",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 3,
+    "cells": [
+      "red",
+      "red",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 4,
+    "cells": [
+      "red",
+      "red",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 5,
+    "cells": [
+      "red",
+      "yellow",
+      "red"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 6,
+    "cells": [
+      "red",
+      "yellow",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 7,
+    "cells": [
+      "red",
+      "yellow",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 8,
+    "cells": [
+      "red",
+      "yellow",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 9,
+    "cells": [
+      "red",
+      "yellow",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 10,
+    "cells": [
+      "red",
+      "green",
+      "red"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 11,
+    "cells": [
+      "red",
+      "green",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 12,
+    "cells": [
+      "red",
+      "green",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 13,
+    "cells": [
+      "red",
+      "green",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 14,
+    "cells": [
+      "red",
+      "green",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 15,
+    "cells": [
+      "red",
+      "blue",
+      "red"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 16,
+    "cells": [
+      "red",
+      "blue",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 17,
+    "cells": [
+      "red",
+      "blue",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 18,
+    "cells": [
+      "red",
+      "blue",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 19,
+    "cells": [
+      "red",
+      "blue",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 20,
+    "cells": [
+      "red",
+      "purple",
+      "red"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 21,
+    "cells": [
+      "red",
+      "purple",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 22,
+    "cells": [
+      "red",
+      "purple",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 23,
+    "cells": [
+      "red",
+      "purple",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 24,
+    "cells": [
+      "red",
+      "purple",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 25,
+    "cells": [
+      "yellow",
+      "red",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 26,
+    "cells": [
+      "yellow",
+      "red",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 27,
+    "cells": [
+      "yellow",
+      "red",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 28,
+    "cells": [
+      "yellow",
+      "red",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 29,
+    "cells": [
+      "yellow",
+      "yellow",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 30,
+    "cells": [
+      "yellow",
+      "yellow",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 31,
+    "cells": [
+      "yellow",
+      "yellow",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 32,
+    "cells": [
+      "yellow",
+      "yellow",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 33,
+    "cells": [
+      "yellow",
+      "green",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 34,
+    "cells": [
+      "yellow",
+      "green",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 35,
+    "cells": [
+      "yellow",
+      "green",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 36,
+    "cells": [
+      "yellow",
+      "green",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 37,
+    "cells": [
+      "yellow",
+      "blue",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 38,
+    "cells": [
+      "yellow",
+      "blue",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 39,
+    "cells": [
+      "yellow",
+      "blue",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 40,
+    "cells": [
+      "yellow",
+      "blue",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 41,
+    "cells": [
+      "yellow",
+      "purple",
+      "yellow"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 42,
+    "cells": [
+      "yellow",
+      "purple",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 43,
+    "cells": [
+      "yellow",
+      "purple",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 44,
+    "cells": [
+      "yellow",
+      "purple",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 45,
+    "cells": [
+      "green",
+      "red",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 46,
+    "cells": [
+      "green",
+      "red",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 47,
+    "cells": [
+      "green",
+      "red",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 48,
+    "cells": [
+      "green",
+      "yellow",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 49,
+    "cells": [
+      "green",
+      "yellow",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 50,
+    "cells": [
+      "green",
+      "yellow",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 51,
+    "cells": [
+      "green",
+      "green",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 52,
+    "cells": [
+      "green",
+      "green",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 53,
+    "cells": [
+      "green",
+      "green",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 54,
+    "cells": [
+      "green",
+      "blue",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 55,
+    "cells": [
+      "green",
+      "blue",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 56,
+    "cells": [
+      "green",
+      "blue",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 57,
+    "cells": [
+      "green",
+      "purple",
+      "green"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 58,
+    "cells": [
+      "green",
+      "purple",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 59,
+    "cells": [
+      "green",
+      "purple",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 60,
+    "cells": [
+      "blue",
+      "red",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 61,
+    "cells": [
+      "blue",
+      "red",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 62,
+    "cells": [
+      "blue",
+      "yellow",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 63,
+    "cells": [
+      "blue",
+      "yellow",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 64,
+    "cells": [
+      "blue",
+      "green",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 65,
+    "cells": [
+      "blue",
+      "green",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 66,
+    "cells": [
+      "blue",
+      "blue",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 67,
+    "cells": [
+      "blue",
+      "blue",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 68,
+    "cells": [
+      "blue",
+      "purple",
+      "blue"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 69,
+    "cells": [
+      "blue",
+      "purple",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 70,
+    "cells": [
+      "purple",
+      "red",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 71,
+    "cells": [
+      "purple",
+      "yellow",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 72,
+    "cells": [
+      "purple",
+      "green",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 73,
+    "cells": [
+      "purple",
+      "blue",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 74,
+    "cells": [
+      "purple",
+      "purple",
+      "purple"
+    ],
+    "isWild": false
+  },
+  {
+    "id": 75,
+    "cells": [
+      "blue",
+      "wild",
+      "yellow"
+    ],
+    "isWild": true
+  },
+  {
+    "id": 76,
+    "cells": [
+      "purple",
+      "wild",
+      "yellow"
+    ],
+    "isWild": true
+  },
+  {
+    "id": 77,
+    "cells": [
+      "blue",
+      "wild",
+      "green"
+    ],
+    "isWild": true
+  },
+  {
+    "id": 78,
+    "cells": [
+      "purple",
+      "wild",
+      "red"
+    ],
+    "isWild": true
+  },
+  {
+    "id": 79,
+    "cells": [
+      "red",
+      "wild",
+      "green"
+    ],
+    "isWild": true
+  }
+]
