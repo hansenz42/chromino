@@ -23,7 +23,7 @@ export async function POST(
   const lobby = await loadGame(code);
   if (!lobby) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (lobby.phase !== "lobby") {
-    return NextResponse.json({ error: "already started" }, { status: 409 });
+    return NextResponse.json({ error: "已开始" }, { status: 409 });
   }
   const host = lobby.players.find((p) => p.isHost);
   if (!host || host.id !== hostId) {

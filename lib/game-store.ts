@@ -12,12 +12,16 @@ export interface SelectedTileInfo {
   orientation: "h" | "v";
 }
 
+export type TileOrientation = { orientation: "h" | "v"; flip: boolean };
+
 interface GameStore {
   state: GameState | null;
   tiles: Tile[];
   selfPlayerId: string | null;
   selected: SelectedTileInfo | null;
   dragging: DragState | null;
+  tileOrientations: Record<number, TileOrientation>;
+  hasDrawnThisTurn: boolean;
 
   setTiles(tiles: Tile[]): void;
   startLocal(opts: Parameters<typeof initGame>[0], selfId: string): void;
@@ -42,6 +46,7 @@ interface GameStore {
   updateDrag(x: number, y: number): void;
   cancelDrag(): void;
   clearDrag(): void;
+  resetGame(): void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -50,12 +55,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
   selfPlayerId: null,
   selected: null,
   dragging: null,
+  tileOrientations: {},
+  hasDrawnThisTurn: false,
   setTiles(tiles) {
     set({ tiles });
   },
   startLocal(opts, selfId) {
     const state = initGame(opts);
-    set({ state, selfPlayerId: selfId, selected: null });
+    set({
+      state,
+      selfPlayerId: selfId,
+      selected: null,
+      tileOrientations: {},
+      hasDrawnThisTurn: false,
+    });
   },
   setState(state) {
     set({ state });
@@ -64,7 +77,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ selfPlayerId: id });
   },
   select(info) {
-    set({ selected: info });
+    if (!info) {
+      set({ selected: null });
+      return;
+    }
+    const saved = get().tileOrientations[info.tileId];
+    set({
+      selected: {
+        tileId: info.tileId,
+        orientation: saved?.orientation ?? "h",
+        flip: saved?.flip ?? false,
+      },
+    });
   },
   rotateSelected() {
     const { selected } = get();
@@ -82,7 +106,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ selected: { ...selected, flip: !selected.flip } });
   },
   rotateLeft() {
-    const { selected } = get();
+    const { selected, tileOrientations } = get();
     if (!selected) return;
     // 4-state clockwise cycle: h/false → v/false → h/true → v/true
     // rotateLeft steps backward in that cycle
@@ -96,10 +120,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       (s) => s.orientation === selected.orientation && s.flip === selected.flip,
     );
     const next = CYCLE[(idx + 3) % 4];
-    set({ selected: { ...selected, ...next } });
+    const updated = { ...selected, ...next };
+    set({
+      selected: updated,
+      tileOrientations: { ...tileOrientations, [selected.tileId]: next },
+    });
   },
   rotateRight() {
-    const { selected } = get();
+    const { selected, tileOrientations } = get();
     if (!selected) return;
     const CYCLE: Array<{ orientation: "h" | "v"; flip: boolean }> = [
       { orientation: "h", flip: false },
@@ -111,14 +139,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
       (s) => s.orientation === selected.orientation && s.flip === selected.flip,
     );
     const next = CYCLE[(idx + 1) % 4];
-    set({ selected: { ...selected, ...next } });
+    const updated = { ...selected, ...next };
+    set({
+      selected: updated,
+      tileOrientations: { ...tileOrientations, [selected.tileId]: next },
+    });
   },
   play(move) {
     const { state, tiles, selfPlayerId } = get();
     if (!state || !selfPlayerId) return { ok: false, error: "no game" };
     const res = applyMove(state, selfPlayerId, move, tiles);
     if (!res.ok) return { ok: false, error: res.error };
-    set({ state: res.state, selected: null });
+    let hasDrawnThisTurn = false;
+    if (move.type === "draw" && state.noAssistance) {
+      hasDrawnThisTurn = true;
+    }
+    set({ state: res.state, selected: null, hasDrawnThisTurn });
     return { ok: true };
   },
   stepAIIfNeeded() {
@@ -157,5 +193,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   clearDrag() {
     set({ dragging: null });
+  },
+  resetGame() {
+    set({
+      state: null,
+      selected: null,
+      dragging: null,
+      hasDrawnThisTurn: false,
+    });
   },
 }));

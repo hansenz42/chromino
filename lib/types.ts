@@ -32,7 +32,7 @@ export interface Player {
   hand: Tile[];
 }
 
-export type GamePhase = "lobby" | "playing" | "ended";
+export type GamePhase = "lobby" | "playing" | "ended" | "disbanded";
 
 export interface PlacementMove {
   type: "play";

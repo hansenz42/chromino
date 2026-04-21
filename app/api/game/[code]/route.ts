@@ -23,7 +23,7 @@ export async function POST(
   const { code } = await params;
   const body = (await req.json()) as { playerId?: string; name?: string };
   const playerId = (body.playerId ?? "").trim();
-  const name = (body.name ?? "Player").trim() || "Player";
+  const name = (body.name ?? "玩家").trim() || "玩家";
   if (!playerId)
     return NextResponse.json({ error: "playerId required" }, { status: 400 });
 
@@ -36,10 +36,7 @@ export async function POST(
     existing.name = name;
   } else {
     if (state.phase !== "lobby") {
-      return NextResponse.json(
-        { error: "game already started" },
-        { status: 409 },
-      );
+      return NextResponse.json({ error: "游戏已开始" }, { status: 409 });
     }
     if (state.players.length >= 4) {
       return NextResponse.json({ error: "game full" }, { status: 409 });

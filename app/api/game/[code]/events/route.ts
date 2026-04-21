@@ -1,7 +1,7 @@
-import { kv } from "@vercel/kv";
+import { loadGame } from "@/lib/kv";
 import type { GameState } from "@/lib/types";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Server-Sent Events stream pushing the latest game state whenever KV version
@@ -13,7 +13,6 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> },
 ) {
   const { code } = await params;
-  const key = `chromino:game:${code.toUpperCase()}`;
   const encoder = new TextEncoder();
   let lastVersion = -1;
   let closed = false;
@@ -33,7 +32,7 @@ export async function GET(
 
       try {
         while (!closed) {
-          const state = (await kv.get(key)) as GameState | null;
+          const state = await loadGame(code);
           if (!state) {
             send("error", { error: "not found" });
             break;
@@ -41,7 +40,7 @@ export async function GET(
           if (state.version !== lastVersion) {
             lastVersion = state.version;
             send("state", state);
-            if (state.phase === "ended") break;
+            if (state.phase === "ended" || state.phase === "disbanded") break;
           }
           await new Promise((r) => setTimeout(r, 500));
         }

@@ -6,6 +6,7 @@ import { TileSvg } from "./Tile";
 import { hasAnyLegalPlay } from "@/lib/game-engine";
 
 const CELL = 48;
+const HAND_CELL = 32;
 
 export function Hand({ state }: { state: GameState }) {
   const {
@@ -18,6 +19,8 @@ export function Hand({ state }: { state: GameState }) {
     tiles,
     dragging,
     clearDrag,
+    tileOrientations,
+    hasDrawnThisTurn,
   } = useGameStore();
 
   // Drag tracking refs (used only in no-assistance mode)
@@ -67,20 +70,30 @@ export function Hand({ state }: { state: GameState }) {
   const isMyTurn =
     state.players[state.currentPlayerIndex]?.id === me.id &&
     state.phase === "playing";
-  // In no-assistance mode the draw button is always available on your turn
+  // In no-assistance mode: can only draw once per turn (before drawing)
   const canDraw = state.noAssistance
-    ? isMyTurn
+    ? isMyTurn && !hasDrawnThisTurn
     : isMyTurn && !hasAnyLegalPlay(state, me.id);
 
   function makeTilePointerDown(tileId: number) {
     if (!state.noAssistance || !isMyTurn) return undefined;
     return (e: React.PointerEvent<HTMLDivElement>) => {
+      // Release implicit pointer capture so that pointerup fires on the element
+      // under the finger/cursor (e.g. the board), not locked to this tile div.
+      // Must use e.target (the actual touched element) — on mobile, the browser
+      // sets implicit capture on e.target, not e.currentTarget, so calling it on
+      // e.currentTarget has no effect and the drop never reaches the board.
+      (e.target as Element).releasePointerCapture(e.pointerId);
       const el = e.currentTarget;
       const rect = el.getBoundingClientRect();
-      const curSel = useGameStore.getState().selected;
+      const { selected: curSel, tileOrientations } = useGameStore.getState();
+      const saved = tileOrientations[tileId];
       const orientation: Orientation =
-        curSel?.tileId === tileId ? curSel.orientation : "h";
-      const flip: boolean = curSel?.tileId === tileId ? curSel.flip : false;
+        curSel?.tileId === tileId
+          ? curSel.orientation
+          : (saved?.orientation ?? "h");
+      const flip: boolean =
+        curSel?.tileId === tileId ? curSel.flip : (saved?.flip ?? false);
       pendingRef.current = {
         tileId,
         pointerId: e.pointerId,
@@ -168,6 +181,7 @@ export function Hand({ state }: { state: GameState }) {
         padding: "10px 12px",
         background: "#1b2028",
         borderTop: "1px solid #2a2f3a",
+        flexShrink: 0,
       }}
     >
       <div
@@ -179,55 +193,100 @@ export function Hand({ state }: { state: GameState }) {
       >
         <strong style={{ color: isMyTurn ? "#4ade80" : "#aaa" }}>
           {isMyTurn
-            ? "Your turn"
-            : `Waiting — ${state.players[state.currentPlayerIndex]?.name}`}
+            ? "轮到您了"
+            : `等待中 — ${state.players[state.currentPlayerIndex]?.name}`}
         </strong>
         <div style={{ display: "flex", gap: 8 }}>
           <button disabled={!selected} onClick={rotateLeft}>
-            ↺ 向左
+            ↺
           </button>
           <button disabled={!selected} onClick={rotateRight}>
-            ↻ 向右
+            ↻
           </button>
-          <button
-            disabled={!canDraw}
-            onClick={() => {
-              const r = play({ type: "draw" });
-              if (!r.ok) alert(r.error);
-            }}
-          >
-            {state.bag.length === 0
-              ? "Pass"
-              : `Draw (${state.bag.length} left)`}
-          </button>
+          {state.noAssistance && hasDrawnThisTurn ? (
+            <button
+              onClick={() => {
+                const r = play({ type: "pass" });
+                if (!r.ok) alert(r.error);
+              }}
+            >
+              结束回合
+            </button>
+          ) : (
+            <button
+              disabled={!canDraw}
+              onClick={() => {
+                const r = play({ type: "draw" });
+                if (!r.ok) alert(r.error);
+              }}
+            >
+              {state.bag.length === 0
+                ? "跳过"
+                : `摘牌（剩 ${state.bag.length} 张）`}
+            </button>
+          )}
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "nowrap",
+          overflowX: "auto",
+          overflowY: "hidden",
+          height: HAND_CELL * 3,
+          alignItems: "center",
+        }}
+      >
         {me.hand.map((t) => {
           const isSel = selected?.tileId === t.id;
           const isDraggingThis = dragging?.tileId === t.id;
           return (
             <div
               key={t.id}
-              onPointerDown={makeTilePointerDown(t.id)}
-              style={{ opacity: isDraggingThis ? 0.3 : 1, touchAction: "none" }}
+              style={{
+                opacity: isDraggingThis ? 0.3 : 1,
+                width: HAND_CELL * 3,
+                height: HAND_CELL * 3,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
             >
-              <TileSvg
-                tile={t}
-                orientation={isSel ? selected!.orientation : "h"}
-                flip={isSel ? selected!.flip : false}
-                selected={isSel}
-                onClick={() => {
-                  if (!isMyTurn) return;
-                  // Suppress click if it was the end of a drag gesture
-                  if (dragBlockRef.current) {
-                    dragBlockRef.current = false;
-                    return;
+              <div
+                onPointerDown={makeTilePointerDown(t.id)}
+                style={{ touchAction: "none", display: "flex" }}
+              >
+                <TileSvg
+                  tile={t}
+                  orientation={
+                    isSel
+                      ? selected!.orientation
+                      : (tileOrientations[t.id]?.orientation ?? "h")
                   }
-                  if (isSel) select(null);
-                  else select({ tileId: t.id, flip: false, orientation: "h" });
-                }}
-              />
+                  flip={
+                    isSel
+                      ? selected!.flip
+                      : (tileOrientations[t.id]?.flip ?? false)
+                  }
+                  size={HAND_CELL}
+                  selected={isSel}
+                  onClick={() => {
+                    if (!isMyTurn) return;
+                    // Suppress click if it was the end of a drag gesture
+                    if (dragBlockRef.current) {
+                      dragBlockRef.current = false;
+                      return;
+                    }
+                    if (isSel) select(null);
+                    else
+                      select({ tileId: t.id, flip: false, orientation: "h" });
+                    // Note: select() in the store ignores the passed flip/orientation
+                    // and restores this tile's saved state from tileOrientations
+                  }}
+                />
+              </div>
             </div>
           );
         })}

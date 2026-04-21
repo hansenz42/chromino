@@ -40,7 +40,7 @@ export default function RemoteGamePage() {
   // Initial join, then subscribe to SSE.
   useEffect(() => {
     const playerId = localStorage.getItem(PID_KEY);
-    const nickname = localStorage.getItem(NICK_KEY) ?? "Player";
+    const nickname = localStorage.getItem(NICK_KEY) ?? "玩家";
     if (!playerId) {
       router.replace("/");
       return;
@@ -91,6 +91,29 @@ export default function RemoteGamePage() {
     };
   }, [code, router, setSelf, setState]);
 
+  // Redirect all clients when room is disbanded
+  useEffect(() => {
+    if (state?.phase === "disbanded") {
+      esRef.current?.close();
+      localStorage.removeItem(LAST_GAME_KEY);
+      router.push("/");
+    }
+  }, [state?.phase, router]);
+
+  async function handleLeave() {
+    const amHost = state?.players.find((p) => p.isHost)?.id === selfPlayerId;
+    esRef.current?.close();
+    if (amHost) {
+      await fetch(`/api/game/${code}/disband`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hostId: selfPlayerId }),
+      });
+    }
+    localStorage.removeItem(LAST_GAME_KEY);
+    router.push("/");
+  }
+
   const postAction = useCallback(
     async (move: Move) => {
       if (!selfPlayerId) return;
@@ -128,9 +151,9 @@ export default function RemoteGamePage() {
   // locally vs the last-seen server version, and forward the last move to the
   // server. To keep it simple, we expose a buffered play action instead.
 
-  if (joining) return <Centered>Connecting…</Centered>;
-  if (error) return <Centered>Error: {error}</Centered>;
-  if (!state) return <Centered>Loading…</Centered>;
+  if (joining) return <Centered>连接中…</Centered>;
+  if (error) return <Centered>错误：{error}</Centered>;
+  if (!state) return <Centered>加载中…</Centered>;
 
   if (state.phase === "lobby") {
     return (
@@ -142,6 +165,7 @@ export default function RemoteGamePage() {
         setAiSeats={setAiSeats}
         noAssistance={noAssistance}
         setNoAssistance={setNoAssistance}
+        onLeave={handleLeave}
       />
     );
   }
@@ -157,8 +181,15 @@ export default function RemoteGamePage() {
     <main
       style={{ display: "flex", flexDirection: "column", height: "100dvh" }}
     >
-      <PlayerPanel state={state} />
-      <div style={{ flex: 1, position: "relative" }}>
+      <PlayerPanel state={state} onLeave={handleLeave} />
+      <div
+        style={{
+          flex: 1,
+          position: "relative",
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
         {/* Remote Board: intercept clicks on candidate cells */}
         <RemoteBoard
           state={state}
@@ -197,6 +228,7 @@ function Lobby({
   setAiSeats,
   noAssistance,
   setNoAssistance,
+  onLeave,
 }: {
   state: GameState;
   code: string;
@@ -205,9 +237,11 @@ function Lobby({
   setAiSeats: (n: number) => void;
   noAssistance: boolean;
   setNoAssistance: (v: boolean) => void;
+  onLeave: () => void;
 }) {
   const host = state.players.find((p) => p.isHost);
   const isHost = host?.id === selfPlayerId;
+  const [confirming, setConfirming] = useState(false);
 
   async function start() {
     await fetch(`/api/game/${code}/start`, {
@@ -227,122 +261,194 @@ function Lobby({
   const total = state.players.length + aiSeats;
 
   return (
-    <main
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-      }}
-    >
-      <div
+    <>
+      <main
         style={{
-          background: "#1b2028",
-          padding: "clamp(16px, 5vw, 24px)",
-          borderRadius: 12,
-          width: "min(100%, 480px)",
+          minHeight: "100dvh",
           display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          border: "1px solid #2a2f3a",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 16,
         }}
       >
-        <h2 style={{ margin: 0 }}>Lobby · {code}</h2>
-        <p style={{ margin: 0, color: "#aaa", fontSize: 13 }}>
-          Share this code with friends. 1–4 players total (including AIs).
-        </p>
-        <ul
+        <div
           style={{
-            listStyle: "none",
-            padding: 0,
-            margin: 0,
+            background: "#1b2028",
+            padding: "clamp(16px, 5vw, 24px)",
+            borderRadius: 12,
+            width: "min(100%, 480px)",
             display: "flex",
             flexDirection: "column",
-            gap: 6,
+            gap: 12,
+            border: "1px solid #2a2f3a",
           }}
         >
-          {state.players.map((p) => (
-            <li
-              key={p.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "10px 12px",
-                minHeight: 44,
-                background: "#222836",
-                borderRadius: 6,
-              }}
-            >
-              <span>
-                {p.name}
-                {p.isHost && " 👑"}
-                {p.id === selfPlayerId && " (you)"}
-              </span>
-              {isHost && !p.isHost && (
-                <button onClick={() => kick(p.id)}>Kick</button>
-              )}
-            </li>
-          ))}
-        </ul>
-        {isHost && (
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label>AI seats:</label>
-              <input
-                type="number"
-                min={0}
-                max={Math.max(0, 4 - state.players.length)}
-                value={aiSeats}
-                onChange={(e) =>
-                  setAiSeats(
-                    Math.max(0, Math.min(3, Number(e.target.value) || 0)),
-                  )
-                }
-                style={{ width: 60 }}
-              />
-              <span style={{ color: "#888", fontSize: 12 }}>
-                total: {total}
-              </span>
-            </div>
-            <label
-              style={{
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-                fontSize: 13,
-                color: "#aaa",
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={noAssistance}
-                onChange={(e) => setNoAssistance(e.target.checked)}
-              />
-              <span>
-                <strong style={{ color: noAssistance ? "#f59e0b" : "#fff" }}>
-                  无辅助模式
-                </strong>
-                {" — 隐藏可放置高亮，需拖拽放牌"}
-              </span>
-            </label>
-          </>
-        )}
-        {isHost ? (
-          <button
-            onClick={start}
-            disabled={total < 1 || total > 4}
-            style={{ background: "#4ade80", color: "#111" }}
+          <h2 style={{ margin: 0 }}>大厅 · {code}</h2>
+          <p style={{ margin: 0, color: "#aaa", fontSize: 13 }}>
+            将此代码分享给朋友。总人数 1–4（包含 AI）。
+          </p>
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}
           >
-            Start game
+            {state.players.map((p) => (
+              <li
+                key={p.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 12px",
+                  minHeight: 44,
+                  background: "#222836",
+                  borderRadius: 6,
+                }}
+              >
+                <span>
+                  {p.name}
+                  {p.isHost && " 👑"}
+                  {p.id === selfPlayerId && " (我)"}
+                </span>
+                {isHost && !p.isHost && (
+                  <button onClick={() => kick(p.id)}>踢出</button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {isHost && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label>AI 平位：</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={Math.max(0, 4 - state.players.length)}
+                  value={aiSeats}
+                  onChange={(e) =>
+                    setAiSeats(
+                      Math.max(0, Math.min(3, Number(e.target.value) || 0)),
+                    )
+                  }
+                  style={{ width: 60 }}
+                />
+                <span style={{ color: "#888", fontSize: 12 }}>
+                  总计：{total}
+                </span>
+              </div>
+              <label
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  fontSize: 13,
+                  color: "#aaa",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={noAssistance}
+                  onChange={(e) => setNoAssistance(e.target.checked)}
+                />
+                <span>
+                  <strong style={{ color: noAssistance ? "#f59e0b" : "#fff" }}>
+                    无辅助模式
+                  </strong>
+                  {" — 隐藏可放置高亮，需拖拽放牌"}
+                </span>
+              </label>
+            </>
+          )}
+          {isHost ? (
+            <button
+              onClick={start}
+              disabled={total < 1 || total > 4}
+              style={{ background: "#4ade80", color: "#111" }}
+            >
+              开始游戏
+            </button>
+          ) : (
+            <p style={{ color: "#888", margin: 0 }}>等待房主开始…</p>
+          )}
+          <button
+            onClick={() => setConfirming(true)}
+            style={{
+              background: "transparent",
+              border: "1px solid #4a3030",
+              color: "#f87171",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            {isHost ? "解散房间" : "离开大厅"}
           </button>
-        ) : (
-          <p style={{ color: "#888", margin: 0 }}>Waiting for host to start…</p>
-        )}
-      </div>
-    </main>
+        </div>
+      </main>
+
+      {confirming && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+          }}
+          onClick={() => setConfirming(false)}
+        >
+          <div
+            style={{
+              background: "#1b2028",
+              border: "1px solid #2a2f3a",
+              borderRadius: 12,
+              padding: "24px 28px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              minWidth: 240,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 16, fontWeight: 600 }}>
+              {isHost ? "解散房间？" : "离开大厅？"}
+            </div>
+            <div style={{ fontSize: 13, color: "#aaa" }}>
+              {isHost
+                ? "房间将关闭，所有玩家都会被踢出。"
+                : "你将离开大厅，其他玩家不受影响。"}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={() => setConfirming(false)} style={{ flex: 1 }}>
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  setConfirming(false);
+                  onLeave();
+                }}
+                style={{
+                  flex: 1,
+                  background: "#dc2626",
+                  border: "none",
+                  color: "#fff",
+                }}
+              >
+                确认
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -370,11 +476,11 @@ function EndOverlay({ state }: { state: GameState }) {
           textAlign: "center",
         }}
       >
-        <h2>Game Over</h2>
+        <h2>游戏结束</h2>
         <p>
-          Winner{names.length > 1 ? "s" : ""}: {names.join(", ") || "—"}
+          胜者{names.length > 1 ? "" : ""}：{names.join("、") || "—"}
         </p>
-        <a href="/">Back to menu</a>
+        <a href="/">返回主菜单</a>
       </div>
     </div>
   );
@@ -396,6 +502,7 @@ import { WILD_STROKE } from "@/lib/colors";
 import { cellFill } from "@/components/Tile";
 
 const CELL = 48;
+const HAND_CELL = 32;
 
 function RemoteBoard({
   state,
@@ -713,6 +820,9 @@ function RemoteHand({
   function makeTilePointerDown(tileId: number) {
     if (!state.noAssistance || disabled) return undefined;
     return (e: React.PointerEvent<HTMLDivElement>) => {
+      // Same fix as Hand.tsx: release on e.target (the actual touched element)
+      // so that pointerup reaches the board on mobile.
+      (e.target as Element).releasePointerCapture(e.pointerId);
       const el = e.currentTarget;
       const rect = el.getBoundingClientRect();
       const curSel = useGameStore.getState().selected;
@@ -792,13 +902,15 @@ function RemoteHand({
 
   return (
     <div
+      className="safe-bottom"
       style={{
         display: "flex",
         flexDirection: "column",
         gap: 8,
-        padding: 12,
+        padding: "10px 12px",
         background: "#1b2028",
         borderTop: "1px solid #2a2f3a",
+        flexShrink: 0,
       }}
     >
       <div
@@ -810,50 +922,74 @@ function RemoteHand({
       >
         <strong style={{ color: !disabled ? "#4ade80" : "#aaa" }}>
           {!disabled
-            ? "Your turn"
+            ? "轮到您了"
             : state.phase === "ended"
-              ? "Game over"
-              : `Waiting — ${state.players[state.currentPlayerIndex]?.name}`}
+              ? "游戏结束"
+              : `等待中 — ${state.players[state.currentPlayerIndex]?.name}`}
         </strong>
         <div style={{ display: "flex", gap: 8 }}>
           <button disabled={!selected || disabled} onClick={rotateSelected}>
-            Rotate
+            旋转
           </button>
           <button disabled={!selected || disabled} onClick={flipSelected}>
-            Flip
+            翻转
           </button>
           <button disabled={!canDraw} onClick={() => onPlay({ type: "draw" })}>
             {state.bag.length === 0
-              ? "Pass"
-              : `Draw (${state.bag.length} left)`}
+              ? "跳过"
+              : `摘牌（剩 ${state.bag.length} 张）`}
           </button>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "nowrap",
+          overflowX: "auto",
+          overflowY: "hidden",
+          height: HAND_CELL * 3,
+          alignItems: "center",
+        }}
+      >
         {me.hand.map((t) => {
           const isSel = selected?.tileId === t.id;
           const isDraggingThis = dragging?.tileId === t.id;
           return (
             <div
               key={t.id}
-              onPointerDown={makeTilePointerDown(t.id)}
-              style={{ opacity: isDraggingThis ? 0.3 : 1, touchAction: "none" }}
+              style={{
+                opacity: isDraggingThis ? 0.3 : 1,
+                width: HAND_CELL * 3,
+                height: HAND_CELL * 3,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
             >
-              <TileSvg
-                tile={t}
-                orientation={isSel ? selected!.orientation : "h"}
-                flip={isSel ? selected!.flip : false}
-                selected={isSel}
-                onClick={() => {
-                  if (disabled) return;
-                  if (dragBlockRef.current) {
-                    dragBlockRef.current = false;
-                    return;
-                  }
-                  if (isSel) select(null);
-                  else select({ tileId: t.id, flip: false, orientation: "h" });
-                }}
-              />
+              <div
+                onPointerDown={makeTilePointerDown(t.id)}
+                style={{ touchAction: "none", display: "flex" }}
+              >
+                <TileSvg
+                  tile={t}
+                  orientation={isSel ? selected!.orientation : "h"}
+                  flip={isSel ? selected!.flip : false}
+                  size={HAND_CELL}
+                  selected={isSel}
+                  onClick={() => {
+                    if (disabled) return;
+                    if (dragBlockRef.current) {
+                      dragBlockRef.current = false;
+                      return;
+                    }
+                    if (isSel) select(null);
+                    else
+                      select({ tileId: t.id, flip: false, orientation: "h" });
+                  }}
+                />
+              </div>
             </div>
           );
         })}

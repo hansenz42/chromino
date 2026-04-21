@@ -3,8 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Chromino",
-  description:
-    "A 1–4 player Chromino webapp with AI opponents and online multiplayer.",
+  description: "一款支持 1–4 人游玩的彩色骨牌游戏，含 AI 对手和在线多人模式。",
 };
 
 export const viewport: Viewport = {
@@ -20,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="zh">
       <body>{children}</body>
     </html>
   );

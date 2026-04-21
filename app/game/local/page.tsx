@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useGameStore } from "@/lib/game-store";
 import { Board } from "@/components/Board";
 import { Hand } from "@/components/Hand";
@@ -17,14 +18,15 @@ function uuid() {
 
 export default function LocalGamePage() {
   const tiles = useMemo(() => generateAllTiles(), []);
-  const { state, setTiles, startLocal, stepAIIfNeeded, selected } =
+  const { state, setTiles, startLocal, stepAIIfNeeded, selected, resetGame } =
     useGameStore();
+  const router = useRouter();
 
   const [seats, setSeats] = useState<SetupPlayer[]>(() => {
     const myName =
       typeof window !== "undefined"
-        ? (localStorage.getItem("chromino_nickname") ?? "You")
-        : "You";
+        ? (localStorage.getItem("chromino_nickname") ?? "我")
+        : "我";
     const myId =
       typeof window !== "undefined"
         ? (localStorage.getItem("chromino_player_id") ?? uuid())
@@ -54,6 +56,7 @@ export default function LocalGamePage() {
       <Setup
         seats={seats}
         setSeats={setSeats}
+        onBack={() => router.push("/")}
         onStart={(players, selfId, noAssistance) => {
           startLocal(
             {
@@ -77,12 +80,24 @@ export default function LocalGamePage() {
 
   const selectedTileId = selected?.tileId ?? null;
 
+  function handleLeave() {
+    resetGame();
+    router.push("/");
+  }
+
   return (
     <main
       style={{ display: "flex", flexDirection: "column", height: "100dvh" }}
     >
-      <PlayerPanel state={state} />
-      <div style={{ flex: 1, position: "relative" }}>
+      <PlayerPanel state={state} onLeave={handleLeave} />
+      <div
+        style={{
+          flex: 1,
+          position: "relative",
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
         <Board state={state} tiles={tiles} selectedTileId={selectedTileId} />
       </div>
       <Hand state={state} />
@@ -123,11 +138,11 @@ function EndOverlay({
           textAlign: "center",
         }}
       >
-        <h2>Game Over</h2>
+        <h2>游戏结束</h2>
         <p>
-          Winner{names.length > 1 ? "s" : ""}: {names.join(", ") || "—"}
+          胜者{names.length > 1 ? "" : ""}：{names.join("、") || "—"}
         </p>
-        <button onClick={() => location.reload()}>Play again</button>
+        <button onClick={() => location.reload()}>再玩一局</button>
       </div>
     </div>
   );
@@ -137,6 +152,7 @@ function Setup({
   seats,
   setSeats,
   onStart,
+  onBack,
 }: {
   seats: SetupPlayer[];
   setSeats: (s: SetupPlayer[]) => void;
@@ -145,6 +161,7 @@ function Setup({
     selfId: string,
     noAssistance: boolean,
   ) => void;
+  onBack: () => void;
 }) {
   const [noAssistance, setNoAssistance] = useState(false);
   function update(i: number, patch: Partial<SetupPlayer>) {
@@ -184,9 +201,25 @@ function Setup({
           border: "1px solid #2a2f3a",
         }}
       >
-        <h2 style={{ margin: 0 }}>Local Game Setup</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={onBack}
+            style={{
+              background: "transparent",
+              border: "1px solid #2a2f3a",
+              color: "#aaa",
+              borderRadius: 6,
+              padding: "3px 10px",
+              cursor: "pointer",
+              fontSize: 13,
+            }}
+          >
+            ← 返回
+          </button>
+          <h2 style={{ margin: 0 }}>本地游戏设置</h2>
+        </div>
         <p style={{ margin: 0, color: "#aaa", fontSize: 13 }}>
-          Add 1–4 seats. Seat 1 is you; others can be humans (hotseat) or AI.
+          添加 1–4 个平位。座位 1 是您；其世可为人类（传递局）或 AI。
         </p>
         {seats.map((s, i) => (
           <div
@@ -226,14 +259,14 @@ function Setup({
         ))}
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={add} disabled={seats.length >= 4}>
-            Add player
+            添加玩家
           </button>
           <button
             onClick={() => onStart(seats, seats[0].id, noAssistance)}
             disabled={seats.length < 1}
             style={{ marginLeft: "auto", background: "#4ade80", color: "#111" }}
           >
-            Start game
+            开始游戏
           </button>
         </div>
         <label

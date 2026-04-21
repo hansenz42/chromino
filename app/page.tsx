@@ -34,7 +34,7 @@ export default function Home() {
   }
 
   async function createRemote() {
-    const name = nick.trim() || "Player";
+    const name = nick.trim() || "玩家";
     saveNick(name);
     const pid = localStorage.getItem(PID_KEY)!;
     const res = await fetch("/api/game/create", {
@@ -43,7 +43,7 @@ export default function Home() {
       body: JSON.stringify({ hostId: pid, hostName: name }),
     });
     if (!res.ok) {
-      alert("Failed to create game");
+      alert("创建游戏失败");
       return;
     }
     const { code } = (await res.json()) as { code: string };
@@ -54,12 +54,12 @@ export default function Home() {
   function joinRemote() {
     const code = joinCode.trim().toUpperCase();
     if (!code) return;
-    saveNick(nick.trim() || "Player");
+    saveNick(nick.trim() || "玩家");
     router.push(`/game/${code}`);
   }
 
   function goLocal() {
-    saveNick(nick.trim() || "Player");
+    saveNick(nick.trim() || "玩家");
     router.push("/game/local");
   }
 
@@ -86,41 +86,39 @@ export default function Home() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 28 }}>Chromino</h1>
-        <p style={{ margin: 0, color: "#aaa" }}>
-          1–4 players · humans &amp; AI · local or online
-        </p>
+        <p style={{ margin: 0, color: "#aaa" }}>1–4 人·人机对战·本地或联机</p>
 
         <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 13, color: "#aaa" }}>Your name</span>
+          <span style={{ fontSize: 13, color: "#aaa" }}>您的名字</span>
           <input
             value={nick}
             onChange={(e) => saveNick(e.target.value)}
-            placeholder="Nickname"
+            placeholder="昵称"
           />
         </label>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button onClick={goLocal}>Play locally (vs AI / hotseat)</button>
-          <button onClick={createRemote}>Create online game</button>
+          <button onClick={goLocal}>本地游戏（对战 AI / 传递局）</button>
+          <button onClick={createRemote}>创建联机游戏</button>
           <div style={{ display: "flex", gap: 8 }}>
             <input
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              placeholder="Match code"
+              placeholder="房间代码"
               maxLength={6}
               style={{ flex: 1 }}
             />
-            <button onClick={joinRemote}>Join</button>
+            <button onClick={joinRemote}>加入</button>
           </div>
           {lastGame && (
             <button onClick={() => router.push(`/game/${lastGame}`)}>
-              Rejoin last game ({lastGame})
+              重新加入上局游戏（{lastGame}）
             </button>
           )}
         </div>
 
         <div style={{ fontSize: 12, color: "#666" }}>
-          Hint: match codes are 6 characters. Example: {generateMatchCode()}
+          提示：房间代码为 6 个字符，例如：{generateMatchCode()}
         </div>
       </div>
     </main>

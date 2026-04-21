@@ -83,7 +83,7 @@ export function initGame(opts: InitGameOptions): GameState {
     firstFinishedPlayerId: null,
     finalRoundDone: {},
     version: 1,
-    log: ["Game started"],
+    log: ["游戏开始"],
     noAssistance: opts.noAssistance,
   };
 }
@@ -243,11 +243,31 @@ export function applyDrawMove(
   p.hand.push(drawn);
   s.log.push(`${p.name} drew a tile`);
 
-  // If the drawn tile is still unplayable, turn ends.
-  if (!hasAnyLegalPlay(s, playerId)) {
-    checkEndConditions(s, playerId);
-    if (s.phase === "playing") advanceTurn(s);
+  // In no-assistance mode the player decides when to end their turn.
+  if (!state.noAssistance) {
+    // If the drawn tile is still unplayable, turn ends automatically.
+    if (!hasAnyLegalPlay(s, playerId)) {
+      checkEndConditions(s, playerId);
+      if (s.phase === "playing") advanceTurn(s);
+    }
   }
+  s.version++;
+  return { ok: true, state: s };
+}
+
+export function applyPassMove(
+  state: GameState,
+  playerId: string,
+): MoveResult | MoveError {
+  if (state.phase !== "playing")
+    return { ok: false, error: "game not playing" };
+  if (currentPlayer(state).id !== playerId)
+    return { ok: false, error: "not your turn" };
+  const s = cloneState(state);
+  const p = s.players[s.currentPlayerIndex];
+  s.log.push(`${p.name} passes`);
+  checkEndConditions(s, playerId);
+  if (s.phase === "playing") advanceTurn(s);
   s.version++;
   return { ok: true, state: s };
 }
@@ -264,7 +284,9 @@ export function applyMove(
     case "draw":
       return applyDrawMove(state, playerId);
     case "pass":
-      return applyDrawMove(state, playerId);
+      return state.noAssistance
+        ? applyPassMove(state, playerId)
+        : applyDrawMove(state, playerId);
   }
 }
 

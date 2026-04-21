@@ -68,13 +68,48 @@ export function TileSvg({
       onClick={onClick}
       style={{
         cursor: onClick ? "pointer" : "default",
-        filter: selected ? "drop-shadow(0 0 6px #fff)" : undefined,
-        outline: selected ? "2px solid #fff" : "none",
         borderRadius: 4,
+        overflow: "visible",
         ...style,
       }}
     >
-      {rects}
+      {selected && (
+        <defs>
+          <filter
+            id={`glow-${tile.id}`}
+            x="-30%"
+            y="-30%"
+            width="160%"
+            height="160%"
+          >
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feColorMatrix
+              in="blur"
+              type="matrix"
+              values="1 1 1 0 1  1 1 1 0 1  1 1 1 0 1  0 0 0 1 0"
+              result="white-blur"
+            />
+            <feMerge>
+              <feMergeNode in="white-blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      )}
+      <g filter={selected ? `url(#glow-${tile.id})` : undefined}>{rects}</g>
+      {selected && (
+        <rect
+          x={1}
+          y={1}
+          width={w - 2}
+          height={h - 2}
+          fill="none"
+          stroke="#fff"
+          strokeWidth={2}
+          rx={3}
+          pointerEvents="none"
+        />
+      )}
     </svg>
   );
 }
