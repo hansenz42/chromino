@@ -77,7 +77,7 @@ export default function Home() {
   }
 
   function joinRemote() {
-    const code = joinCode.trim().toUpperCase();
+    const code = joinCode.trim();
     if (!code) return;
     saveNick(nick.trim() || "玩家");
     router.push(`/game/${code}`);
@@ -353,7 +353,7 @@ export default function Home() {
               <input
                 className={clsx(INPUT_BASE, "flex-1 min-w-0")}
                 value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                onChange={(e) => setJoinCode(e.target.value)}
                 placeholder="房间代码"
                 maxLength={6}
                 autoFocus
