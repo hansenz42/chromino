@@ -47,20 +47,17 @@ export default function LocalGamePage() {
     }
   }, [state, stepAIIfNeeded]);
 
+  useEffect(() => {
+    setOnLeave(() => {
+      resetGame();
+      router.push(`/${locale}`);
+    });
+    return () => setOnLeave(null);
+  }, [setOnLeave, resetGame, router, locale]);
+
   if (!state) return null;
 
   const selectedTileId = selected?.tileId ?? null;
-
-  function handleLeave() {
-    resetGame();
-    router.push(`/${locale}`);
-  }
-
-  useEffect(() => {
-    setOnLeave(handleLeave);
-    return () => setOnLeave(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <main className="flex flex-col h-full">
