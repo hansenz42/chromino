@@ -31,7 +31,7 @@ type SetupPlayer = { id: string; name: string; isAI: boolean };
 
 type View = "home" | "online" | "local";
 
-const MAIN_CLS = "relative min-h-dvh flex items-center justify-center p-4";
+const MAIN_CLS = "relative min-h-full flex items-center justify-center p-4";
 
 export default function Home() {
   const router = useRouter();
@@ -399,29 +399,10 @@ export default function Home() {
   );
 }
 
-function PageFooter({ locale }: { locale: string }) {
-  const t = useTranslations("home");
+function PageFooter({ locale: _locale }: { locale: string }) {
   return (
-    <footer className="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-3 text-xs">
-      <div className="text-subtle text-[11px]">v{pkg.version}</div>
-      <div className="flex gap-5">
-        <a
-          href="https://github.com/hansenz42/chromino"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-subtle no-underline hover:underline"
-        >
-          {t("github")}
-        </a>
-        <a
-          href="https://www.assen.top"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-subtle no-underline hover:underline"
-        >
-          {t("devBlog")}
-        </a>
-      </div>
+    <footer className="absolute bottom-4 left-0 right-0 flex justify-center text-[11px] text-subtle">
+      v{pkg.version}
     </footer>
   );
 }

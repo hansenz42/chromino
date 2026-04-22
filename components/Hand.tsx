@@ -82,6 +82,7 @@ export function Hand({
   function makeTilePointerDown(tileId: number) {
     if (!state.noAssistance || !isMyTurn) return undefined;
     return (e: React.PointerEvent<HTMLDivElement>) => {
+      dragBlockRef.current = false;
       (e.target as Element).releasePointerCapture(e.pointerId);
       const el = e.currentTarget;
       const rect = el.getBoundingClientRect();
@@ -171,9 +172,7 @@ export function Hand({
     <div
       className={clsx(
         "safe-bottom flex flex-col gap-2 px-3 py-2.5 border-t shrink-0",
-        isMyTurn
-          ? "bg-hand-active border-primary"
-          : "bg-surface border-border",
+        isMyTurn ? "bg-hand-active border-primary" : "bg-surface border-border",
       )}
     >
       <div className="flex justify-between items-center">
@@ -254,9 +253,7 @@ export function Hand({
                 onPointerDown={makeTilePointerDown(t.id)}
                 className={clsx(
                   "flex",
-                  state.noAssistance && isMyTurn
-                    ? "touch-none"
-                    : "touch-auto",
+                  state.noAssistance && isMyTurn ? "touch-none" : "touch-auto",
                 )}
               >
                 <TileSvg

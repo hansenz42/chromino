@@ -18,6 +18,7 @@ import {
   MODAL_CARD,
 } from "@/lib/ui-classes";
 import { useTranslations, useLocale } from "next-intl";
+import { useUIStore } from "@/lib/ui-store";
 
 const NICK_KEY = "chromino_nickname";
 const PID_KEY = "chromino_player_id";
@@ -33,6 +34,7 @@ export default function RemoteGamePage() {
   const tiles = useMemo(() => generateAllTiles(), []);
   const { state, setTiles, setState, setSelf, selfPlayerId, selected, select } =
     useGameStore();
+  const { setOnLeave } = useUIStore();
   const [joining, setJoining] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(true);
@@ -128,6 +130,11 @@ export default function RemoteGamePage() {
     localStorage.removeItem(LAST_GAME_KEY);
     router.push(`/${locale}`);
   }
+  useEffect(() => {
+    setOnLeave(handleLeave);
+    return () => setOnLeave(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const postAction = useCallback(
     async (move: Move) => {
@@ -201,12 +208,8 @@ export default function RemoteGamePage() {
     state.phase === "playing";
 
   return (
-    <main className="flex flex-col h-dvh">
-      <PlayerPanel
-        state={state}
-        selfPlayerId={selfPlayerId}
-        onLeave={handleLeave}
-      />
+    <main className="flex flex-col h-full">
+      <PlayerPanel state={state} selfPlayerId={selfPlayerId} />
       {!isConnected && (
         <div className="bg-banner text-banner-fg text-center px-3 py-1.5 text-[13px] shrink-0">
           {t("connectionLost")}
@@ -228,7 +231,7 @@ export default function RemoteGamePage() {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-dvh flex items-center justify-center">
+    <main className="min-h-full flex items-center justify-center">
       <div>{children}</div>
     </main>
   );
@@ -291,7 +294,7 @@ function Lobby({
 
   return (
     <>
-      <main className="min-h-dvh flex items-center justify-center p-4">
+      <main className="min-h-full flex items-center justify-center p-4">
         <div className="bg-surface border border-border rounded-xl p-[clamp(16px,5vw,24px)] w-[min(100%,480px)] flex flex-col gap-3">
           <div className="flex items-center gap-2.5">
             <h2 className="m-0">{t("lobbyTitle")}</h2>

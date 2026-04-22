@@ -5,7 +5,7 @@ import { getMessages, getTranslations } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import { notFound } from "next/navigation";
 import "@/app/globals.css";
-import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { Header } from "@/components/Header";
 
 const fredoka = Fredoka({
   subsets: ["latin"],
@@ -55,11 +55,11 @@ export default async function LocaleLayout({
   return (
     <html lang={locale}>
       <body
-        className={`m-0 min-h-dvh bg-bg text-fg font-sans antialiased overscroll-none ${fredoka.variable}`}
+        className={`m-0 h-dvh flex flex-col bg-bg text-fg font-sans antialiased overscroll-none ${fredoka.variable}`}
       >
         <NextIntlClientProvider messages={messages}>
-          {children}
-          <LocaleSwitcher />
+          <Header />
+          <div className="flex-1 min-h-0 overflow-auto">{children}</div>
         </NextIntlClientProvider>
       </body>
     </html>

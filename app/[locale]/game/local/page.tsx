@@ -9,6 +9,7 @@ import { generateAllTiles } from "@/lib/tile-generator";
 import type { Player } from "@/lib/types";
 import { BTN_DEFAULT, BTN_PRIMARY } from "@/lib/ui-classes";
 import { useTranslations, useLocale } from "next-intl";
+import { useUIStore } from "@/lib/ui-store";
 
 export default function LocalGamePage() {
   const tiles = useMemo(() => generateAllTiles(), []);
@@ -25,6 +26,7 @@ export default function LocalGamePage() {
   const router = useRouter();
   const locale = useLocale();
   const t = useTranslations("game");
+  const { setOnLeave } = useUIStore();
 
   useEffect(() => {
     setTiles(tiles);
@@ -54,13 +56,15 @@ export default function LocalGamePage() {
     router.push(`/${locale}`);
   }
 
+  useEffect(() => {
+    setOnLeave(handleLeave);
+    return () => setOnLeave(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <main className="flex flex-col h-dvh">
-      <PlayerPanel
-        state={state}
-        selfPlayerId={selfPlayerId}
-        onLeave={handleLeave}
-      />
+    <main className="flex flex-col h-full">
+      <PlayerPanel state={state} selfPlayerId={selfPlayerId} />
       <div className="flex-1 relative min-h-0 overflow-hidden">
         <Board state={state} tiles={tiles} selectedTileId={selectedTileId} />
       </div>
