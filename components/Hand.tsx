@@ -21,6 +21,7 @@ export function Hand({ state }: { state: GameState }) {
     clearDrag,
     tileOrientations,
     hasDrawnThisTurn,
+    boardZoom,
   } = useGameStore();
 
   // Drag tracking refs (used only in no-assistance mode)
@@ -44,23 +45,24 @@ export function Hand({ state }: { state: GameState }) {
   useLayoutEffect(() => {
     if (!dragging || !floatingRef.current) return;
     const el = floatingRef.current;
+    const tileCell = CELL * boardZoom;
     const isH = dragging.orientation === "h";
     if (dragging.cancelling) {
       // Ensure we start from current cursor position before animating back
       el.style.transition = "none";
-      el.style.left = `${dragging.currentX - (isH ? CELL * 1.5 : CELL * 0.5)}px`;
-      el.style.top = `${dragging.currentY - (isH ? CELL * 0.5 : CELL * 1.5)}px`;
+      el.style.left = `${dragging.currentX - (isH ? tileCell * 1.5 : tileCell * 0.5)}px`;
+      el.style.top = `${dragging.currentY - (isH ? tileCell * 0.5 : tileCell * 1.5)}px`;
       const frame = requestAnimationFrame(() => {
         el.style.transition = "left 0.25s ease-in, top 0.25s ease-in";
-        el.style.left = `${dragging.originX - (isH ? CELL * 1.5 : CELL * 0.5)}px`;
-        el.style.top = `${dragging.originY - (isH ? CELL * 0.5 : CELL * 1.5)}px`;
+        el.style.left = `${dragging.originX - (isH ? tileCell * 1.5 : tileCell * 0.5)}px`;
+        el.style.top = `${dragging.originY - (isH ? tileCell * 0.5 : tileCell * 1.5)}px`;
       });
       return () => cancelAnimationFrame(frame);
     } else {
       // Place at current cursor position (initial mount of floating tile)
       el.style.transition = "none";
-      el.style.left = `${dragging.currentX - (isH ? CELL * 1.5 : CELL * 0.5)}px`;
-      el.style.top = `${dragging.currentY - (isH ? CELL * 0.5 : CELL * 1.5)}px`;
+      el.style.left = `${dragging.currentX - (isH ? tileCell * 1.5 : tileCell * 0.5)}px`;
+      el.style.top = `${dragging.currentY - (isH ? tileCell * 0.5 : tileCell * 1.5)}px`;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging?.tileId, dragging?.cancelling]);
@@ -135,8 +137,9 @@ export function Hand({ state }: { state: GameState }) {
           // Update floating tile position directly (no React re-render needed)
           if (floatingRef.current) {
             const isH = pendingRef.current.orientation === "h";
-            floatingRef.current.style.left = `${ev.clientX - (isH ? CELL * 1.5 : CELL * 0.5)}px`;
-            floatingRef.current.style.top = `${ev.clientY - (isH ? CELL * 0.5 : CELL * 1.5)}px`;
+            const tileCell = CELL * useGameStore.getState().boardZoom;
+            floatingRef.current.style.left = `${ev.clientX - (isH ? tileCell * 1.5 : tileCell * 0.5)}px`;
+            floatingRef.current.style.top = `${ev.clientY - (isH ? tileCell * 0.5 : tileCell * 1.5)}px`;
           }
         }
       };
@@ -309,7 +312,7 @@ export function Hand({ state }: { state: GameState }) {
             tile={dragTile}
             orientation={dragging.orientation}
             flip={dragging.flip}
-            size={CELL}
+            size={Math.round(CELL * boardZoom)}
           />
         </div>
       )}

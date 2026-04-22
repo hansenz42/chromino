@@ -22,8 +22,10 @@ interface GameStore {
   dragging: DragState | null;
   tileOrientations: Record<number, TileOrientation>;
   hasDrawnThisTurn: boolean;
+  boardZoom: number;
 
   setTiles(tiles: Tile[]): void;
+  setBoardZoom(zoom: number): void;
   startLocal(opts: Parameters<typeof initGame>[0], selfId: string): void;
   setState(state: GameState): void;
   setSelf(id: string | null): void;
@@ -57,8 +59,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   dragging: null,
   tileOrientations: {},
   hasDrawnThisTurn: false,
+  boardZoom: 1,
   setTiles(tiles) {
     set({ tiles });
+  },
+  setBoardZoom(zoom) {
+    set({ boardZoom: zoom });
   },
   startLocal(opts, selfId) {
     const state = initGame(opts);

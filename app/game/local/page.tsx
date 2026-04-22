@@ -163,7 +163,7 @@ function Setup({
   ) => void;
   onBack: () => void;
 }) {
-  const [noAssistance, setNoAssistance] = useState(false);
+  const [noAssistance, setNoAssistance] = useState(true);
   function update(i: number, patch: Partial<SetupPlayer>) {
     setSeats(seats.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
@@ -229,9 +229,12 @@ function Setup({
             <span style={{ width: 24, color: "#888" }}>{i + 1}.</span>
             <input
               value={s.name}
-              onChange={(e) => update(i, { name: e.target.value })}
+              onChange={(e) => {
+                update(i, { name: e.target.value });
+                if (i === 0)
+                  localStorage.setItem("chromino_nickname", e.target.value);
+              }}
               style={{ flex: 1 }}
-              disabled={i === 0}
             />
             <label
               style={{
@@ -257,42 +260,75 @@ function Setup({
             </button>
           </div>
         ))}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={add} disabled={seats.length >= 4}>
-            添加玩家
-          </button>
-          <button
-            onClick={() => onStart(seats, seats[0].id, noAssistance)}
-            disabled={seats.length < 1}
-            style={{ marginLeft: "auto", background: "#4ade80", color: "#111" }}
-          >
-            开始游戏
-          </button>
-        </div>
-        <label
+        <button onClick={add} disabled={seats.length >= 4}>
+          添加玩家
+        </button>
+        <div
           style={{
-            display: "flex",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
             gap: 8,
-            alignItems: "center",
-            fontSize: 13,
-            color: "#aaa",
-            cursor: "pointer",
             borderTop: "1px solid #2a2f3a",
             paddingTop: 10,
           }}
         >
-          <input
-            type="checkbox"
-            checked={noAssistance}
-            onChange={(e) => setNoAssistance(e.target.checked)}
-          />
-          <span>
-            <strong style={{ color: noAssistance ? "#f59e0b" : "#fff" }}>
-              无辅助模式
-            </strong>
-            {" — 隐藏可放置高亮，需拖拽放牌"}
-          </span>
-        </label>
+          {[
+            {
+              value: true,
+              label: "线下模式",
+              sub: "无辅助 · 需拖拽放牌",
+            },
+            {
+              value: false,
+              label: "辅助模式",
+              sub: "新手模式 · 高亮提示",
+            },
+          ].map(({ value, label, sub }) => {
+            const active = noAssistance === value;
+            return (
+              <button
+                key={String(value)}
+                onClick={() => setNoAssistance(value)}
+                style={{
+                  padding: "10px 8px",
+                  borderRadius: 8,
+                  border: active ? "2px solid #4ade80" : "2px solid #2a2f3a",
+                  background: active ? "#1a2e1f" : "transparent",
+                  color: active ? "#4ade80" : "#888",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  lineHeight: 1.4,
+                  transition:
+                    "border-color 0.15s, background 0.15s, color 0.15s",
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{label}</div>
+                <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>
+                  {sub}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ borderTop: "1px solid #2a2f3a", paddingTop: 10 }}>
+          <button
+            onClick={() => onStart(seats, seats[0].id, noAssistance)}
+            disabled={seats.length < 1}
+            style={{
+              width: "100%",
+              padding: "12px 0",
+              borderRadius: 8,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              border: "none",
+              background: "#4ade80",
+              color: "#111",
+            }}
+          >
+            开始游戏
+          </button>
+        </div>
       </div>
     </main>
   );

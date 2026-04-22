@@ -20,7 +20,7 @@ export interface BoardProps {
 }
 
 export function Board({ state, tiles, selectedTileId }: BoardProps) {
-  const { selected, play } = useGameStore();
+  const { selected, play, setBoardZoom } = useGameStore();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +88,11 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
     setZoom(fz);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep the game store in sync so Hand can size the drag ghost correctly
+  useEffect(() => {
+    setBoardZoom(zoom);
+  }, [zoom, setBoardZoom]);
 
   function onCellClick(cx: number, cy: number) {
     if (!selectedTile || !selected) return;
@@ -275,6 +280,23 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
           viewBox={`${minX * CELL} ${minY * CELL} ${width} ${height}`}
         >
           <defs>
+            <filter
+              id="latest-tile-glow"
+              x="-60%"
+              y="-60%"
+              width="220%"
+              height="220%"
+            >
+              <feGaussianBlur
+                in="SourceGraphic"
+                stdDeviation="6"
+                result="blur"
+              />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
             {state.placed.map((pt) => {
               const isH = pt.orientation === "h";
               return (
@@ -320,47 +342,46 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
             const isLatest = idx === state.placed.length - 1;
             const isH = pt.orientation === "h";
             return (
-              <g key={`tile-${pt.tileId}`} clipPath={`url(#cp-${pt.tileId})`}>
-                {pt.cells.map((cell, i) => {
-                  const cx = pt.x + (isH ? i : 0);
-                  const cy = pt.y + (isH ? 0 : i);
-                  return (
-                    <g key={i}>
-                      <rect
-                        x={cx * CELL}
-                        y={cy * CELL}
-                        width={CELL}
-                        height={CELL}
-                        fill={cellFill(cell)}
-                        stroke={cell === "wild" ? WILD_STROKE : "#111"}
-                        strokeWidth={1}
-                      />
-                      {cell === "wild" && (
-                        <circle
-                          cx={cx * CELL + CELL / 2}
-                          cy={cy * CELL + CELL / 2}
-                          r={CELL * 0.22}
-                          fill="none"
-                          stroke={WILD_STROKE}
-                          strokeWidth={2}
+              <g key={`tile-${pt.tileId}`}>
+                <g clipPath={`url(#cp-${pt.tileId})`}>
+                  {pt.cells.map((cell, i) => {
+                    const cx = pt.x + (isH ? i : 0);
+                    const cy = pt.y + (isH ? 0 : i);
+                    return (
+                      <g key={i}>
+                        <rect
+                          x={cx * CELL}
+                          y={cy * CELL}
+                          width={CELL}
+                          height={CELL}
+                          fill={cellFill(cell)}
+                          stroke={cell === "wild" ? WILD_STROKE : "#111"}
+                          strokeWidth={1}
                         />
-                      )}
-                    </g>
-                  );
-                })}
+                        {cell === "wild" && (
+                          <circle
+                            cx={cx * CELL + CELL / 2}
+                            cy={cy * CELL + CELL / 2}
+                            r={CELL * 0.22}
+                            fill="none"
+                            stroke={WILD_STROKE}
+                            strokeWidth={2}
+                          />
+                        )}
+                      </g>
+                    );
+                  })}
+                </g>
                 <rect
-                  x={pt.x * CELL + 2}
-                  y={pt.y * CELL + 2}
-                  width={(isH ? 3 : 1) * CELL - 4}
-                  height={(isH ? 1 : 3) * CELL - 4}
+                  x={pt.x * CELL + 1}
+                  y={pt.y * CELL + 1}
+                  width={(isH ? 3 : 1) * CELL - 2}
+                  height={(isH ? 1 : 3) * CELL - 2}
                   rx={6}
                   fill="none"
-                  stroke={
-                    isLatest
-                      ? "rgba(255,255,100,0.75)"
-                      : "rgba(255,255,255,0.45)"
-                  }
-                  strokeWidth={isLatest ? 2.5 : 2}
+                  stroke={isLatest ? "#ffffff" : "rgba(255,255,255,0.45)"}
+                  strokeWidth={isLatest ? 5 : 2}
+                  filter={isLatest ? "url(#latest-tile-glow)" : undefined}
                   pointerEvents="none"
                 />
               </g>
