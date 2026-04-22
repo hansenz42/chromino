@@ -182,7 +182,7 @@ export default function Home() {
               </button>
             )}
             <button className={BTN_SECONDARY} onClick={goOnline}>
-              联机游戏
+              联机对战
             </button>
           </div>
         </div>
@@ -221,13 +221,29 @@ export default function Home() {
                   if (i === 0) localStorage.setItem(NICK_KEY, e.target.value);
                 }}
               />
-              <label className="flex gap-1 items-center text-[13px]">
-                <input
-                  type="checkbox"
-                  checked={s.isAI}
-                  onChange={(e) => updateSeat(i, { isAI: e.target.checked })}
+              <label className="flex gap-1.5 items-center text-[13px] select-none">
+                <button
+                  role="switch"
+                  aria-checked={s.isAI}
                   disabled={i === 0}
-                />
+                  onClick={() => updateSeat(i, { isAI: !s.isAI })}
+                  className={clsx(
+                    "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent",
+                    "transition-colors duration-200 focus-visible:outline-none",
+                    "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                    s.isAI ? "bg-primary" : "bg-muted/40",
+                    i === 0 && "opacity-40 cursor-not-allowed",
+                    i !== 0 && "cursor-pointer",
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm",
+                      "transition-transform duration-200",
+                      s.isAI ? "translate-x-4" : "translate-x-0",
+                    )}
+                  />
+                </button>
                 AI
               </label>
               <button
