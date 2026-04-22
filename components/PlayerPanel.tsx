@@ -11,6 +11,7 @@ import {
   MODAL_BACKDROP,
   MODAL_CARD,
 } from "@/lib/ui-classes";
+import { useTranslations } from "next-intl";
 
 export function PlayerPanel({
   state,
@@ -22,6 +23,7 @@ export function PlayerPanel({
   onLeave?: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const t = useTranslations("playerPanel");
 
   return (
     <>
@@ -34,7 +36,9 @@ export function PlayerPanel({
           </span>
         </div>
         <div className="flex items-center gap-2.5">
-          <span className="text-xs text-muted">剩 {state.bag.length} 张</span>
+          <span className="text-xs text-muted">
+            {t("tilesRemaining", { count: state.bag.length })}
+          </span>
           {onLeave && (
             <button
               onClick={() => setConfirming(true)}
@@ -43,7 +47,7 @@ export function PlayerPanel({
                 "!min-h-0 !px-2 !py-0.5 !text-xs",
               )}
             >
-              退出
+              {t("leave")}
             </button>
           )}
         </div>
@@ -84,7 +88,7 @@ export function PlayerPanel({
                 </span>
                 {p.id === selfPlayerId && (
                   <span className="text-[10px] text-subtle-2 bg-[rgba(107,114,128,0.15)] border border-[rgba(107,114,128,0.3)] rounded-[3px] px-[3px] leading-[14px] shrink-0">
-                    我
+                    {t("meTag")}
                   </span>
                 )}
               </div>
@@ -98,15 +102,16 @@ export function PlayerPanel({
                 )}
                 {!lastTile && (
                   <span className="text-[11px] text-muted font-normal">
-                    {p.hand.length}
-                    张牌
+                    {t("tileCount", { count: p.hand.length })}
                   </span>
                 )}
                 {lastTile && (
                   <TileSvg tile={p.hand[0]} size={14} orientation="h" />
                 )}
                 {p.connected === false && !p.aiTakeover && (
-                  <span className="text-[9px] text-subtle-2">断线</span>
+                  <span className="text-[9px] text-subtle-2">
+                    {t("disconnected")}
+                  </span>
                 )}
               </div>
             </div>
@@ -117,16 +122,14 @@ export function PlayerPanel({
       {confirming && (
         <div className={MODAL_BACKDROP} onClick={() => setConfirming(false)}>
           <div className={MODAL_CARD} onClick={(e) => e.stopPropagation()}>
-            <div className="text-base font-semibold">退出房间？</div>
-            <div className="text-[13px] text-muted">
-              游戏进度将会丢失，确认退出？
-            </div>
+            <div className="text-base font-semibold">{t("leaveRoomTitle")}</div>
+            <div className="text-[13px] text-muted">{t("leaveRoomMsg")}</div>
             <div className="flex gap-2.5 justify-center">
               <button
                 onClick={() => setConfirming(false)}
                 className={clsx(BTN_SECONDARY, "flex-1")}
               >
-                取消
+                {t("cancel")}
               </button>
               <button
                 onClick={() => {
@@ -135,7 +138,7 @@ export function PlayerPanel({
                 }}
                 className={clsx(BTN_DANGER, "flex-1")}
               >
-                退出
+                {t("leaveConfirm")}
               </button>
             </div>
           </div>

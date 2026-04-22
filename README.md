@@ -1,5 +1,7 @@
 # Chromino
 
+**DEMO：[chromino.assen.top](https://chromino.assen.top)**
+
 A 1–4 player Chromino webapp built with Next.js 15 (App Router), TypeScript, and Vercel KV.
 Play locally (hotseat + AI) or online (6-character match code, real-time via SSE).
 
