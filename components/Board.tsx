@@ -89,7 +89,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
     );
   }, [state, selectedTile, selected]);
 
-  // Auto-fit board to container on first mount
+  // Auto-fit board to container on first mount, then center on the first tile
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -102,6 +102,18 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
     );
     fitZoomRef.current = fz;
     setZoom(fz);
+    const latest = state.placed.at(-1);
+    if (latest) {
+      const isH = latest.orientation === "h";
+      const wx = (latest.x + (isH ? 1.5 : 0.5)) * CELL - minX * CELL;
+      const wy = (latest.y + (isH ? 0.5 : 1.5)) * CELL - minY * CELL;
+      const wrapperLeft = Math.max(0, (cw - width) / 2);
+      const wrapperTop = Math.max(0, (ch - height) / 2);
+      setPan({
+        x: cw / 2 - wrapperLeft - width / 2 - (wx - width / 2) * fz,
+        y: ch / 2 - wrapperTop - height / 2 - (wy - height / 2) * fz,
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

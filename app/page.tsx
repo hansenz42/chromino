@@ -1,13 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import clsx from "clsx";
 import { useGameStore } from "@/lib/game-store";
 import { generateRandomName } from "@/lib/name-generator";
 import type { Player } from "@/lib/types";
 import pkg from "@/package.json";
-import { ChrominoLogo } from "@/components/ChrominoLogo";
 import {
   BTN_GHOST,
   BTN_PRIMARY,
@@ -79,7 +77,7 @@ export default function Home() {
   }
 
   function joinRemote() {
-    const code = joinCode.trim();
+    const code = joinCode.trim().toUpperCase();
     if (!code) return;
     saveNick(nick.trim() || "玩家");
     router.push(`/game/${code}`);
@@ -154,23 +152,9 @@ export default function Home() {
       <main className={MAIN_CLS}>
         <div className={CARD}>
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <ChrominoLogo size={36} />
-              <h1 className="m-0 text-3xl font-chromino font-semibold tracking-wide text-primary">
-                Chromino
-              </h1>
-            </div>
+            <h1 className="m-0 mb-1 text-3xl -tracking-[1px]">Chromino</h1>
             <p className="m-0 text-subtle text-[13px]">
-              益智桌游 · 1–8 人 · 本地游戏或线上对战 
-            </p>
-            <p className="m-0 mt-2 text-muted text-[13px] leading-relaxed">
-              一款以多色骨牌为主题的桌游，竞相打出手中所有骨牌来获得胜利
-              <Link
-                href="/rules"
-                className="ml-2 text-link no-underline hover:underline"
-              >
-                查看规则 →
-              </Link>
+              1–8 人 · 人机对战 · 本地或联机
             </p>
           </div>
           <div className="flex flex-col gap-2.5">
@@ -180,7 +164,7 @@ export default function Home() {
                   className={BTN_PRIMARY}
                   onClick={() => router.push("/game/local")}
                 >
-                  继续本地游戏
+                  继续游戏
                 </button>
                 <button
                   className={BTN_SECONDARY}
@@ -189,7 +173,7 @@ export default function Home() {
                     goLocal();
                   }}
                 >
-                  新建本地游戏
+                  新建游戏
                 </button>
               </>
             ) : (
@@ -198,7 +182,7 @@ export default function Home() {
               </button>
             )}
             <button className={BTN_SECONDARY} onClick={goOnline}>
-              在线对战
+              联机游戏
             </button>
           </div>
         </div>
@@ -369,7 +353,7 @@ export default function Home() {
               <input
                 className={clsx(INPUT_BASE, "flex-1 min-w-0")}
                 value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                 placeholder="房间代码"
                 maxLength={6}
                 autoFocus
