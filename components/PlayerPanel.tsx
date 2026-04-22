@@ -161,50 +161,21 @@ export function PlayerPanel({
                     {statusEmoji}
                   </span>
                 )}
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: lastTile ? "#fbbf24" : "#aaa",
-                    fontWeight: lastTile ? 600 : 400,
-                  }}
-                >
-                  {p.hand.length}
-                </span>
-                {/* Generic tile icon: three small squares */}
-                <svg
-                  width={24}
-                  height={8}
-                  viewBox="0 0 24 8"
-                  style={{ display: "block", flexShrink: 0 }}
-                >
-                  {[0, 8, 16].map((x) => (
-                    <rect
-                      key={x}
-                      x={x}
-                      y={0}
-                      width={7}
-                      height={7}
-                      rx={1}
-                      fill={lastTile ? "#fbbf24" : "#555"}
-                    />
-                  ))}
-                </svg>
+                {!lastTile && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "#aaa",
+                      fontWeight: 400,
+                    }}
+                  >
+                    {p.hand.length}
+                    张牌
+                  </span>
+                )}
                 {lastTile && (
                   <>
                     <TileSvg tile={p.hand[0]} size={14} orientation="h" />
-                    <span
-                      style={{
-                        fontSize: 9,
-                        color: "#fbbf24",
-                        background: "rgba(251,191,36,0.15)",
-                        border: "1px solid rgba(251,191,36,0.4)",
-                        borderRadius: 3,
-                        padding: "0 3px",
-                        lineHeight: "14px",
-                      }}
-                    >
-                      公开
-                    </span>
                   </>
                 )}
                 {p.connected === false && !p.aiTakeover && (

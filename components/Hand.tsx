@@ -281,7 +281,10 @@ export function Hand({
             >
               <div
                 onPointerDown={makeTilePointerDown(t.id)}
-                style={{ touchAction: "none", display: "flex" }}
+                style={{
+                  touchAction: state.noAssistance && isMyTurn ? "none" : "auto",
+                  display: "flex",
+                }}
               >
                 <TileSvg
                   tile={t}

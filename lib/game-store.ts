@@ -241,7 +241,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!cur.isAI) return;
     const rng = mulberry32(strSeed(`${state.code}:${state.version}:${cur.id}`));
     const move = chooseAIMove(state, cur.id, rng);
-    const res = applyMove(state, cur.id, move, tiles);
+    let res = applyMove(state, cur.id, move, tiles);
+    if (!res.ok) return;
+
+    // In no-assistance mode a draw does not auto-advance the turn.
+    // Follow it with a play (if the drawn tile fits) or a pass.
+    if (
+      state.noAssistance &&
+      move.type === "draw" &&
+      res.state.phase === "playing"
+    ) {
+      const postDrawMove = chooseAIMove(res.state, cur.id, rng);
+      const followUp: Move =
+        postDrawMove.type === "draw" ? { type: "pass" } : postDrawMove;
+      const r2 = applyMove(res.state, cur.id, followUp, tiles);
+      if (!r2.ok) return;
+      res = r2;
+    }
+
     if (res.ok) {
       // For local pass-and-play: if the AI's move advances to a human player,
       // switch selfPlayerId and show the privacy screen.

@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     version: 1,
     log: [`${hostName} created the game`],
     lobbyAiSeats: 0,
-    lobbyNoAssistance: false,
+    lobbyNoAssistance: true,
   };
   await saveGame(lobby);
   return NextResponse.json({ code });
