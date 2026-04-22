@@ -161,10 +161,10 @@ export default function Home() {
               </h1>
             </div>
             <p className="m-0 text-subtle text-[13px]">
-              1–8 人 · 人机对战 · 本地或联机
+              益智桌游 · 1–8 人 · 本地游戏或线上对战 
             </p>
             <p className="m-0 mt-2 text-muted text-[13px] leading-relaxed">
-              一款以多色骨牌为主题的策略游戏，竞相打出手中所有骨牌来获得胜利
+              一款以多色骨牌为主题的桌游，竞相打出手中所有骨牌来获得胜利
               <Link
                 href="/rules"
                 className="ml-2 text-link no-underline hover:underline"
@@ -180,7 +180,7 @@ export default function Home() {
                   className={BTN_PRIMARY}
                   onClick={() => router.push("/game/local")}
                 >
-                  继续游戏
+                  继续本地游戏
                 </button>
                 <button
                   className={BTN_SECONDARY}
@@ -189,7 +189,7 @@ export default function Home() {
                     goLocal();
                   }}
                 >
-                  新建游戏
+                  新建本地游戏
                 </button>
               </>
             ) : (
@@ -198,7 +198,7 @@ export default function Home() {
               </button>
             )}
             <button className={BTN_SECONDARY} onClick={goOnline}>
-              联机对战
+              在线对战
             </button>
           </div>
         </div>
