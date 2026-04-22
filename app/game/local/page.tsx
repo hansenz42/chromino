@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/lib/game-store";
 import { Board } from "@/components/Board";
@@ -8,38 +8,22 @@ import { PlayerPanel } from "@/components/PlayerPanel";
 import { generateAllTiles } from "@/lib/tile-generator";
 import type { Player } from "@/lib/types";
 
-type SetupPlayer = { id: string; name: string; isAI: boolean };
-
-function uuid() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto)
-    return crypto.randomUUID();
-  return "p_" + Math.random().toString(36).slice(2, 10);
-}
-
 export default function LocalGamePage() {
   const tiles = useMemo(() => generateAllTiles(), []);
-  const { state, setTiles, startLocal, stepAIIfNeeded, selected, resetGame } =
+  const { state, setTiles, stepAIIfNeeded, selected, resetGame } =
     useGameStore();
   const router = useRouter();
-
-  const [seats, setSeats] = useState<SetupPlayer[]>(() => {
-    const myName =
-      typeof window !== "undefined"
-        ? (localStorage.getItem("chromino_nickname") ?? "我")
-        : "我";
-    const myId =
-      typeof window !== "undefined"
-        ? (localStorage.getItem("chromino_player_id") ?? uuid())
-        : uuid();
-    return [
-      { id: myId, name: myName, isAI: false },
-      { id: uuid(), name: "AI Bob", isAI: true },
-    ];
-  });
 
   useEffect(() => {
     setTiles(tiles);
   }, [tiles, setTiles]);
+
+  // Redirect to home if there is no active game (direct navigation or browser back without setup)
+  useEffect(() => {
+    if (!state) {
+      router.replace("/");
+    }
+  }, [state, router]);
 
   // Drive AI turns
   useEffect(() => {
@@ -51,32 +35,7 @@ export default function LocalGamePage() {
     }
   }, [state, stepAIIfNeeded]);
 
-  if (!state) {
-    return (
-      <Setup
-        seats={seats}
-        setSeats={setSeats}
-        onBack={() => router.push("/")}
-        onStart={(players, selfId, noAssistance) => {
-          startLocal(
-            {
-              code: "LOCAL",
-              players: players.map<Omit<Player, "hand" | "connected">>(
-                (p, i) => ({
-                  id: p.id,
-                  name: p.name,
-                  isAI: p.isAI,
-                  isHost: i === 0,
-                }),
-              ),
-              noAssistance,
-            },
-            selfId,
-          );
-        }}
-      />
-    );
-  }
+  if (!state) return null;
 
   const selectedTileId = selected?.tileId ?? null;
 
@@ -102,7 +61,14 @@ export default function LocalGamePage() {
       </div>
       <Hand state={state} />
       {state.phase === "ended" && (
-        <EndOverlay winners={state.winners} players={state.players} />
+        <EndOverlay
+          winners={state.winners}
+          players={state.players}
+          onPlayAgain={() => {
+            resetGame();
+            router.push("/");
+          }}
+        />
       )}
     </main>
   );
@@ -111,9 +77,11 @@ export default function LocalGamePage() {
 function EndOverlay({
   winners,
   players,
+  onPlayAgain,
 }: {
   winners: string[];
   players: Player[];
+  onPlayAgain: () => void;
 }) {
   const names = winners.map(
     (id) => players.find((p) => p.id === id)?.name ?? id,
@@ -142,194 +110,8 @@ function EndOverlay({
         <p>
           胜者{names.length > 1 ? "" : ""}：{names.join("、") || "—"}
         </p>
-        <button onClick={() => location.reload()}>再玩一局</button>
+        <button onClick={onPlayAgain}>再玩一局</button>
       </div>
     </div>
-  );
-}
-
-function Setup({
-  seats,
-  setSeats,
-  onStart,
-  onBack,
-}: {
-  seats: SetupPlayer[];
-  setSeats: (s: SetupPlayer[]) => void;
-  onStart: (
-    players: SetupPlayer[],
-    selfId: string,
-    noAssistance: boolean,
-  ) => void;
-  onBack: () => void;
-}) {
-  const [noAssistance, setNoAssistance] = useState(true);
-  function update(i: number, patch: Partial<SetupPlayer>) {
-    setSeats(seats.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
-  }
-  function add() {
-    if (seats.length >= 4) return;
-    setSeats([
-      ...seats,
-      { id: uuid(), name: `AI ${seats.length + 1}`, isAI: true },
-    ]);
-  }
-  function remove(i: number) {
-    if (seats.length <= 1 || i === 0) return;
-    setSeats(seats.filter((_, idx) => idx !== i));
-  }
-
-  return (
-    <main
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          background: "#1b2028",
-          padding: "clamp(16px, 5vw, 24px)",
-          borderRadius: 12,
-          width: "min(100%, 480px)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-          border: "1px solid #2a2f3a",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button
-            onClick={onBack}
-            style={{
-              background: "transparent",
-              border: "1px solid #2a2f3a",
-              color: "#aaa",
-              borderRadius: 6,
-              padding: "3px 10px",
-              cursor: "pointer",
-              fontSize: 13,
-            }}
-          >
-            ← 返回
-          </button>
-          <h2 style={{ margin: 0 }}>本地游戏设置</h2>
-        </div>
-        <p style={{ margin: 0, color: "#aaa", fontSize: 13 }}>
-          添加 1–4 个平位。座位 1 是您；其世可为人类（传递局）或 AI。
-        </p>
-        {seats.map((s, i) => (
-          <div
-            key={s.id}
-            style={{ display: "flex", gap: 8, alignItems: "center" }}
-          >
-            <span style={{ width: 24, color: "#888" }}>{i + 1}.</span>
-            <input
-              value={s.name}
-              onChange={(e) => {
-                update(i, { name: e.target.value });
-                if (i === 0)
-                  localStorage.setItem("chromino_nickname", e.target.value);
-              }}
-              style={{ flex: 1 }}
-            />
-            <label
-              style={{
-                display: "flex",
-                gap: 4,
-                alignItems: "center",
-                fontSize: 13,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={s.isAI}
-                onChange={(e) => update(i, { isAI: e.target.checked })}
-                disabled={i === 0}
-              />
-              AI
-            </label>
-            <button
-              onClick={() => remove(i)}
-              disabled={i === 0 || seats.length <= 1}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <button onClick={add} disabled={seats.length >= 4}>
-          添加玩家
-        </button>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 8,
-            borderTop: "1px solid #2a2f3a",
-            paddingTop: 10,
-          }}
-        >
-          {[
-            {
-              value: true,
-              label: "线下模式",
-              sub: "无辅助 · 需拖拽放牌",
-            },
-            {
-              value: false,
-              label: "辅助模式",
-              sub: "新手模式 · 高亮提示",
-            },
-          ].map(({ value, label, sub }) => {
-            const active = noAssistance === value;
-            return (
-              <button
-                key={String(value)}
-                onClick={() => setNoAssistance(value)}
-                style={{
-                  padding: "10px 8px",
-                  borderRadius: 8,
-                  border: active ? "2px solid #4ade80" : "2px solid #2a2f3a",
-                  background: active ? "#1a2e1f" : "transparent",
-                  color: active ? "#4ade80" : "#888",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  lineHeight: 1.4,
-                  transition:
-                    "border-color 0.15s, background 0.15s, color 0.15s",
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{label}</div>
-                <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>
-                  {sub}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ borderTop: "1px solid #2a2f3a", paddingTop: 10 }}>
-          <button
-            onClick={() => onStart(seats, seats[0].id, noAssistance)}
-            disabled={seats.length < 1}
-            style={{
-              width: "100%",
-              padding: "12px 0",
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-              border: "none",
-              background: "#4ade80",
-              color: "#111",
-            }}
-          >
-            开始游戏
-          </button>
-        </div>
-      </div>
-    </main>
   );
 }

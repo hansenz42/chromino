@@ -134,7 +134,7 @@ export function PlayerPanel({
                   color: "#fff",
                 }}
               >
-                确认退出
+                退出
               </button>
             </div>
           </div>

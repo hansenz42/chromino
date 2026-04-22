@@ -4,6 +4,44 @@ import { applyMove, initGame } from "./game-engine";
 import { chooseAIMove } from "./ai-player";
 import { mulberry32, strSeed } from "./rng";
 
+// ── Local game persistence ────────────────────────────────────────────────
+const LOCAL_STATE_KEY = "chromino_local_state";
+
+function saveLocalGame(state: GameState, selfPlayerId: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      LOCAL_STATE_KEY,
+      JSON.stringify({ state, selfPlayerId }),
+    );
+  } catch {
+    // quota exceeded or private-mode restriction — silently skip
+  }
+}
+
+function loadLocalGame(): {
+  state: GameState;
+  selfPlayerId: string | null;
+} | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(LOCAL_STATE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as { state: GameState; selfPlayerId: string | null };
+  } catch {
+    return null;
+  }
+}
+
+function clearLocalGame() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(LOCAL_STATE_KEY);
+}
+
+// Loaded once at module initialisation (synchronous, so store starts hydrated)
+const _saved = loadLocalGame();
+// ─────────────────────────────────────────────────────────────────────────
+
 export type UIMode = "setup" | "local" | "remote-lobby" | "remote-game";
 
 export interface SelectedTileInfo {
@@ -52,9 +90,9 @@ interface GameStore {
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
-  state: null,
+  state: _saved?.state ?? null,
   tiles: [],
-  selfPlayerId: null,
+  selfPlayerId: _saved?.selfPlayerId ?? null,
   selected: null,
   dragging: null,
   tileOrientations: {},
@@ -75,6 +113,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       tileOrientations: {},
       hasDrawnThisTurn: false,
     });
+    saveLocalGame(state, selfId);
   },
   setState(state) {
     set({ state });
@@ -161,17 +200,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       hasDrawnThisTurn = true;
     }
     set({ state: res.state, selected: null, hasDrawnThisTurn });
+    if (res.state.code === "LOCAL") saveLocalGame(res.state, selfPlayerId);
     return { ok: true };
   },
   stepAIIfNeeded() {
-    const { state, tiles } = get();
+    const { state, tiles, selfPlayerId } = get();
     if (!state || state.phase !== "playing") return;
     const cur = state.players[state.currentPlayerIndex];
     if (!cur.isAI) return;
     const rng = mulberry32(strSeed(`${state.code}:${state.version}:${cur.id}`));
     const move = chooseAIMove(state, cur.id, rng);
     const res = applyMove(state, cur.id, move, tiles);
-    if (res.ok) set({ state: res.state });
+    if (res.ok) {
+      set({ state: res.state });
+      if (res.state.code === "LOCAL") saveLocalGame(res.state, selfPlayerId);
+    }
   },
   startDrag(tileId, orientation, flip, curX, curY, originX, originY) {
     set({
@@ -201,6 +244,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ dragging: null });
   },
   resetGame() {
+    clearLocalGame();
     set({
       state: null,
       selected: null,

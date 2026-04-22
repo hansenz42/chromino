@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useGameStore } from "@/lib/game-store";
+import type { Player } from "@/lib/types";
 
 const NICK_KEY = "chromino_nickname";
 const PID_KEY = "chromino_player_id";
@@ -12,16 +14,21 @@ function uuid() {
   return "p_" + Math.random().toString(36).slice(2, 10);
 }
 
-type View = "home" | "online";
+type SetupPlayer = { id: string; name: string; isAI: boolean };
+
+type View = "home" | "online" | "local";
 
 export default function Home() {
   const router = useRouter();
+  const { startLocal, state: localState, resetGame } = useGameStore();
   const [view, setView] = useState<View>("home");
   const [nick, setNick] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [showJoin, setShowJoin] = useState(false);
   const [lastGame, setLastGame] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [seats, setSeats] = useState<SetupPlayer[]>([]);
+  const [noAssistance, setNoAssistance] = useState(true);
 
   useEffect(() => {
     const n = localStorage.getItem(NICK_KEY) ?? "";
@@ -74,6 +81,54 @@ export default function Home() {
     setView("home");
     setShowJoin(false);
     setJoinCode("");
+  }
+
+  function goLocal() {
+    const myName = localStorage.getItem(NICK_KEY) ?? "我";
+    const myId = localStorage.getItem(PID_KEY) ?? uuid();
+    setSeats([
+      { id: myId, name: myName, isAI: false },
+      { id: uuid(), name: "AI Bob", isAI: true },
+    ]);
+    setNoAssistance(true);
+    setView("local");
+  }
+
+  function updateSeat(i: number, patch: Partial<SetupPlayer>) {
+    setSeats((prev) =>
+      prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)),
+    );
+  }
+
+  function addSeat() {
+    if (seats.length >= 4) return;
+    setSeats((prev) => [
+      ...prev,
+      { id: uuid(), name: `AI ${prev.length + 1}`, isAI: true },
+    ]);
+  }
+
+  function removeSeat(i: number) {
+    if (seats.length <= 1 || i === 0) return;
+    setSeats((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function startLocalGame() {
+    const selfId = seats[0].id;
+    startLocal(
+      {
+        code: "LOCAL",
+        players: seats.map<Omit<Player, "hand" | "connected">>((p, i) => ({
+          id: p.id,
+          name: p.name,
+          isAI: p.isAI,
+          isHost: i === 0,
+        })),
+        noAssistance,
+      },
+      selfId,
+    );
+    router.push("/game/local");
   }
 
   // ── shared card wrapper ──────────────────────────────────────────────────
@@ -134,14 +189,156 @@ export default function Home() {
             </p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button
-              style={btnPrimary}
-              onClick={() => router.push("/game/local")}
-            >
-              本地游戏
-            </button>
+            {localState?.code === "LOCAL" ? (
+              <>
+                <button
+                  style={btnPrimary}
+                  onClick={() => router.push("/game/local")}
+                >
+                  继续游戏
+                </button>
+                <button
+                  style={btnSecondary}
+                  onClick={() => {
+                    resetGame();
+                    goLocal();
+                  }}
+                >
+                  新建游戏
+                </button>
+              </>
+            ) : (
+              <button style={btnPrimary} onClick={goLocal}>
+                本地游戏
+              </button>
+            )}
             <button style={btnSecondary} onClick={goOnline}>
               联机游戏
+            </button>
+          </div>
+        </div>
+        <PageFooter />
+      </main>
+    );
+  }
+
+  // ── LOCAL SETUP view ─────────────────────────────────────────────────────
+  if (view === "local") {
+    return (
+      <main style={mainStyle}>
+        <div
+          style={{
+            ...card,
+            width: "min(100%, 480px)",
+            gap: 14,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button style={btnGhost} onClick={goBack}>
+              ← 返回
+            </button>
+            <h2 style={{ margin: 0 }}>本地游戏设置</h2>
+          </div>
+          <p style={{ margin: 0, color: "#aaa", fontSize: 13 }}>
+            添加 1–4 个座位。座位 1 是您；其余可为人类（传递局）或 AI。
+          </p>
+          {seats.map((s, i) => (
+            <div
+              key={s.id}
+              style={{ display: "flex", gap: 8, alignItems: "center" }}
+            >
+              <span style={{ width: 24, color: "#888" }}>{i + 1}.</span>
+              <input
+                value={s.name}
+                onChange={(e) => {
+                  updateSeat(i, { name: e.target.value });
+                  if (i === 0) localStorage.setItem(NICK_KEY, e.target.value);
+                }}
+                style={{ flex: 1 }}
+              />
+              <label
+                style={{
+                  display: "flex",
+                  gap: 4,
+                  alignItems: "center",
+                  fontSize: 13,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={s.isAI}
+                  onChange={(e) => updateSeat(i, { isAI: e.target.checked })}
+                  disabled={i === 0}
+                />
+                AI
+              </label>
+              <button
+                onClick={() => removeSeat(i)}
+                disabled={i === 0 || seats.length <= 1}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button onClick={addSeat} disabled={seats.length >= 4}>
+            添加玩家
+          </button>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+              borderTop: "1px solid #2a2f3a",
+              paddingTop: 10,
+            }}
+          >
+            {[
+              { value: true, label: "线下模式", sub: "无辅助 · 需拖拽放牌" },
+              { value: false, label: "辅助模式", sub: "新手模式 · 高亮提示" },
+            ].map(({ value, label, sub }) => {
+              const active = noAssistance === value;
+              return (
+                <button
+                  key={String(value)}
+                  onClick={() => setNoAssistance(value)}
+                  style={{
+                    padding: "10px 8px",
+                    borderRadius: 8,
+                    border: active ? "2px solid #4ade80" : "2px solid #2a2f3a",
+                    background: active ? "#1a2e1f" : "transparent",
+                    color: active ? "#4ade80" : "#888",
+                    cursor: "pointer",
+                    textAlign: "center",
+                    lineHeight: 1.4,
+                    transition:
+                      "border-color 0.15s, background 0.15s, color 0.15s",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{label}</div>
+                  <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>
+                    {sub}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ borderTop: "1px solid #2a2f3a", paddingTop: 10 }}>
+            <button
+              onClick={startLocalGame}
+              disabled={seats.length < 1}
+              style={{
+                width: "100%",
+                padding: "12px 0",
+                borderRadius: 8,
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "none",
+                background: "#4ade80",
+                color: "#111",
+              }}
+            >
+              开始游戏
             </button>
           </div>
         </div>

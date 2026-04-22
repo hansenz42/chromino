@@ -20,9 +20,14 @@ export interface BoardProps {
 }
 
 export function Board({ state, tiles, selectedTileId }: BoardProps) {
-  const { selected, play, setBoardZoom } = useGameStore();
+  const { selected, play, setBoardZoom, dragging } = useGameStore();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [hoverAnchor, setHoverAnchor] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const hoverAnchorRef = useRef<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -93,6 +98,14 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
   useEffect(() => {
     setBoardZoom(zoom);
   }, [zoom, setBoardZoom]);
+
+  // Clear hover indicator when drag ends
+  useEffect(() => {
+    if (!dragging) {
+      setHoverAnchor(null);
+      hoverAnchorRef.current = null;
+    }
+  }, [dragging]);
 
   function onCellClick(cx: number, cy: number) {
     if (!selectedTile || !selected) return;
@@ -238,6 +251,72 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
     store.cancelDrag();
   }
 
+  // ── Drag hover indicator (no-assistance mode) ──────────────────────────
+
+  function handleDragHover(e: React.PointerEvent<HTMLDivElement>) {
+    if (!state.noAssistance || !dragging || dragging.cancelling) return;
+    if (!svgRef.current) return;
+    const svgRect = svgRef.current.getBoundingClientRect();
+    if (
+      e.clientX < svgRect.left ||
+      e.clientX > svgRect.right ||
+      e.clientY < svgRect.top ||
+      e.clientY > svgRect.bottom
+    ) {
+      if (hoverAnchorRef.current !== null) {
+        hoverAnchorRef.current = null;
+        setHoverAnchor(null);
+      }
+      return;
+    }
+    const tile = tiles[dragging.tileId];
+    if (!tile) return;
+    const pixX = e.clientX - svgRect.left;
+    const pixY = e.clientY - svgRect.top;
+    const viewX = (pixX / svgRect.width) * width + minX * CELL;
+    const viewY = (pixY / svgRect.height) * height + minY * CELL;
+    const gridX = Math.floor(viewX / CELL);
+    const gridY = Math.floor(viewY / CELL);
+    const anchors: [number, number][] =
+      dragging.orientation === "h"
+        ? [
+            [gridX, gridY],
+            [gridX - 1, gridY],
+            [gridX - 2, gridY],
+          ]
+        : [
+            [gridX, gridY],
+            [gridX, gridY - 1],
+            [gridX, gridY - 2],
+          ];
+    // Use first valid anchor, or fall back to raw grid position
+    let targetX = gridX;
+    let targetY = gridY;
+    for (const [ax, ay] of anchors) {
+      if (
+        validatePlacement(
+          state,
+          tile,
+          ax,
+          ay,
+          dragging.orientation,
+          dragging.flip,
+        ).valid
+      ) {
+        targetX = ax;
+        targetY = ay;
+        break;
+      }
+    }
+    if (
+      hoverAnchorRef.current?.x !== targetX ||
+      hoverAnchorRef.current?.y !== targetY
+    ) {
+      hoverAnchorRef.current = { x: targetX, y: targetY };
+      setHoverAnchor({ x: targetX, y: targetY });
+    }
+  }
+
   function onWheel(e: React.WheelEvent) {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -256,7 +335,16 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
         position: "relative",
       }}
       onPointerDown={onBoardPointerDown}
-      onPointerMove={onBoardPointerMove}
+      onPointerMove={(e) => {
+        onBoardPointerMove(e);
+        handleDragHover(e);
+      }}
+      onPointerLeave={() => {
+        if (hoverAnchorRef.current !== null) {
+          hoverAnchorRef.current = null;
+          setHoverAnchor(null);
+        }
+      }}
       onPointerUp={(e) => {
         handleTileDrop(e);
         cleanupBoardPointer(e.pointerId);
@@ -411,6 +499,36 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
                 </g>
               );
             })}
+
+          {/* Drag drop target indicator — no-assistance mode */}
+          {state.noAssistance &&
+            dragging &&
+            !dragging.cancelling &&
+            hoverAnchor &&
+            (() => {
+              const fp = tileFootprint(
+                hoverAnchor.x,
+                hoverAnchor.y,
+                dragging.orientation,
+              );
+              return (
+                <g pointerEvents="none">
+                  {fp.map(([fx, fy], i) => (
+                    <rect
+                      key={i}
+                      x={fx * CELL}
+                      y={fy * CELL}
+                      width={CELL}
+                      height={CELL}
+                      fill="rgba(255,255,255,0.08)"
+                      stroke="rgba(255,255,255,0.45)"
+                      strokeWidth={2}
+                      strokeDasharray="4 3"
+                    />
+                  ))}
+                </g>
+              );
+            })()}
         </svg>
       </div>
 
@@ -454,13 +572,50 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
             fontSize: 13,
             lineHeight: 1,
           }}
-          onClick={() => {
-            setZoom(fitZoomRef.current);
-            setPan({ x: 0, y: 0 });
-          }}
           title="Reset view"
+          onClick={() => {
+            const z = fitZoomRef.current;
+            const latest = state.placed.at(-1);
+            if (!latest || !containerRef.current) {
+              setZoom(z);
+              setPan({ x: 0, y: 0 });
+              return;
+            }
+            const cw = containerRef.current.clientWidth;
+            const ch = containerRef.current.clientHeight;
+            const isH = latest.orientation === "h";
+            // Tile center in wrapper-local pixels
+            const wx = (latest.x + (isH ? 1.5 : 0.5)) * CELL - minX * CELL;
+            const wy = (latest.y + (isH ? 0.5 : 1.5)) * CELL - minY * CELL;
+            // CSS `margin: 0 auto` resolves margin-left to 0 when wrapper > container.
+            // wrapperLeft is 0 when overflowing, (cw-width)/2 when smaller.
+            const wrapperLeft = Math.max(0, (cw - width) / 2);
+            const wrapperTop = Math.max(0, (ch - height) / 2);
+            // screen_x = wrapperLeft + width/2 + panX + (wx - width/2) * z  => solve for panX:
+            setZoom(z);
+            setPan({
+              x: cw / 2 - wrapperLeft - width / 2 - (wx - width / 2) * z,
+              y: ch / 2 - wrapperTop - height / 2 - (wy - height / 2) * z,
+            });
+          }}
         >
-          ↺
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="4" />
+            <line x1="12" y1="2" x2="12" y2="6" />
+            <line x1="12" y1="18" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="6" y2="12" />
+            <line x1="18" y1="12" x2="22" y2="12" />
+          </svg>
         </button>
       </div>
     </div>
