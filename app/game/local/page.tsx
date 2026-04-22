@@ -2,6 +2,7 @@
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/lib/game-store";
+import { useUIStore } from "@/lib/ui-store";
 import { Board } from "@/components/Board";
 import { Hand } from "@/components/Hand";
 import { PlayerPanel } from "@/components/PlayerPanel";
@@ -21,6 +22,7 @@ export default function LocalGamePage() {
     showPrivacyScreen,
     acknowledgePrivacyScreen,
   } = useGameStore();
+  const { setOnLeave } = useUIStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -51,13 +53,15 @@ export default function LocalGamePage() {
     router.push("/");
   }
 
+  useEffect(() => {
+    setOnLeave(handleLeave);
+    return () => setOnLeave(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <main className="flex flex-col h-dvh">
-      <PlayerPanel
-        state={state}
-        selfPlayerId={selfPlayerId}
-        onLeave={handleLeave}
-      />
+      <PlayerPanel state={state} selfPlayerId={selfPlayerId} />
       <div className="flex-1 relative min-h-0 overflow-hidden">
         <Board state={state} tiles={tiles} selectedTileId={selectedTileId} />
       </div>

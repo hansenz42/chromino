@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import clsx from "clsx";
 import { useGameStore } from "@/lib/game-store";
+import { useUIStore } from "@/lib/ui-store";
 import { Board } from "@/components/Board";
 import { Hand } from "@/components/Hand";
 import { PlayerPanel } from "@/components/PlayerPanel";
@@ -30,6 +31,7 @@ export default function RemoteGamePage() {
   const tiles = useMemo(() => generateAllTiles(), []);
   const { state, setTiles, setState, setSelf, selfPlayerId, selected, select } =
     useGameStore();
+  const { setOnLeave } = useUIStore();
   const [joining, setJoining] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(true);
@@ -103,6 +105,12 @@ export default function RemoteGamePage() {
       setDisbanded(true);
     }
   }, [state?.phase]);
+
+  useEffect(() => {
+    setOnLeave(handleLeave);
+    return () => setOnLeave(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleLeave() {
     const amHost = state?.players.find((p) => p.isHost)?.id === selfPlayerId;
@@ -191,11 +199,7 @@ export default function RemoteGamePage() {
 
   return (
     <main className="flex flex-col h-dvh">
-      <PlayerPanel
-        state={state}
-        selfPlayerId={selfPlayerId}
-        onLeave={handleLeave}
-      />
+      <PlayerPanel state={state} selfPlayerId={selfPlayerId} />
       {!isConnected && (
         <div className="bg-banner text-banner-fg text-center px-3 py-1.5 text-[13px] shrink-0">
           连接已断开，正在重连…
@@ -358,8 +362,16 @@ function Lobby({
               <div className="grid grid-cols-2 gap-2 border-t border-border pt-2.5 mt-0.5">
                 {(
                   [
-                    { value: true, label: "线下模式", sub: "无辅助 · 需拖拽放牌" },
-                    { value: false, label: "辅助模式", sub: "新手友好 · 高亮提示" },
+                    {
+                      value: true,
+                      label: "线下模式",
+                      sub: "无辅助 · 需拖拽放牌",
+                    },
+                    {
+                      value: false,
+                      label: "辅助模式",
+                      sub: "新手友好 · 高亮提示",
+                    },
                   ] as { value: boolean; label: string; sub: string }[]
                 ).map(({ value, label, sub }) => {
                   const active = noAssistance === value;
@@ -404,14 +416,8 @@ function Lobby({
       </main>
 
       {confirming && (
-        <div
-          className={MODAL_BACKDROP}
-          onClick={() => setConfirming(false)}
-        >
-          <div
-            className={MODAL_CARD}
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className={MODAL_BACKDROP} onClick={() => setConfirming(false)}>
+          <div className={MODAL_CARD} onClick={(e) => e.stopPropagation()}>
             <div className="text-base font-semibold">
               {isHost ? "解散房间？" : "离开大厅？"}
             </div>
@@ -452,9 +458,7 @@ function EndOverlay({ state }: { state: GameState }) {
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-surface p-6 rounded-xl text-center">
         <h2>游戏结束</h2>
-        <p>
-          胜者：{names.join("、") || "—"}
-        </p>
+        <p>胜者：{names.join("、") || "—"}</p>
         <a href="/" className="text-link hover:underline">
           返回主菜单
         </a>
