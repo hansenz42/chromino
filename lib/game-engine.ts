@@ -108,6 +108,7 @@ function currentPlayer(s: GameState): Player {
 
 function advanceTurn(s: GameState): void {
   s.currentPlayerIndex = (s.currentPlayerIndex + 1) % s.players.length;
+  s.turnHasDrawn = false;
 }
 
 /**
@@ -200,6 +201,7 @@ export function applyPlayMove(
   s.placed.push(placed);
   p.hand.splice(handIdx, 1);
   s.log.push(`${p.name} played a tile`);
+  s.consecutivePasses = 0;
 
   checkEndConditions(s, playerId);
   if (s.phase === "playing") advanceTurn(s);
@@ -234,7 +236,12 @@ export function applyDrawMove(
   const p = s.players[s.currentPlayerIndex];
   if (s.bag.length === 0) {
     s.log.push(`${p.name} passes (bag empty)`);
+    s.consecutivePasses = (s.consecutivePasses ?? 0) + 1;
     checkEndConditions(s, playerId);
+    if (s.phase === "playing" && s.consecutivePasses >= s.players.length) {
+      s.phase = "ended";
+      s.log.push("游戏结束（无法继续）");
+    }
     if (s.phase === "playing") advanceTurn(s);
     s.version++;
     return { ok: true, state: s };
@@ -242,9 +249,12 @@ export function applyDrawMove(
   const drawn = s.bag.shift()!;
   p.hand.push(drawn);
   s.log.push(`${p.name} drew a tile`);
+  s.consecutivePasses = 0;
 
   // In no-assistance mode the player decides when to end their turn.
-  if (!state.noAssistance) {
+  if (state.noAssistance) {
+    s.turnHasDrawn = true;
+  } else {
     // If the drawn tile is still unplayable, turn ends automatically.
     if (!hasAnyLegalPlay(s, playerId)) {
       checkEndConditions(s, playerId);
@@ -266,7 +276,12 @@ export function applyPassMove(
   const s = cloneState(state);
   const p = s.players[s.currentPlayerIndex];
   s.log.push(`${p.name} passes`);
+  s.consecutivePasses = (s.consecutivePasses ?? 0) + 1;
   checkEndConditions(s, playerId);
+  if (s.phase === "playing" && s.consecutivePasses >= s.players.length) {
+    s.phase = "ended";
+    s.log.push("游戏结束（无法继续）");
+  }
   if (s.phase === "playing") advanceTurn(s);
   s.version++;
   return { ok: true, state: s };

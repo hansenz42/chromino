@@ -30,6 +30,8 @@ export interface Player {
   isHost: boolean;
   connected: boolean;
   hand: Tile[];
+  /** True when a human player left mid-game and AI took over their seat. */
+  aiTakeover?: boolean;
 }
 
 export type GamePhase = "lobby" | "playing" | "ended" | "disbanded";
@@ -74,6 +76,24 @@ export interface GameState {
   log: string[];
   /** When true, ghost placement hints are hidden and tiles must be placed by drag-and-drop. */
   noAssistance?: boolean;
+  /**
+   * Lobby-phase settings, kept in game state so SSE broadcasts them to all guests.
+   * Consumed by the start route and the lobby UI.
+   */
+  lobbyAiSeats?: number;
+  lobbyNoAssistance?: boolean;
+  /**
+   * In no-assistance mode: true if the current player has already drawn a tile
+   * this turn (and therefore must pass or play before the turn advances).
+   * Cleared automatically when the turn advances.
+   */
+  turnHasDrawn?: boolean;
+  /**
+   * Counts consecutive pass/empty-bag actions across all players without an
+   * intervening play or draw. When this reaches players.length the game is in
+   * a permanent stalemate and is terminated.
+   */
+  consecutivePasses?: number;
 }
 
 /** Ephemeral drag state for the no-assistance drag-and-drop mode. Lives in the UI store only. */
@@ -93,5 +113,5 @@ export interface DragState {
 
 export interface CreateGameConfig {
   hostName: string;
-  maxPlayers: number; // 2-4
+  maxPlayers: number; // 1-8
 }

@@ -61,9 +61,11 @@ interface GameStore {
   tileOrientations: Record<number, TileOrientation>;
   hasDrawnThisTurn: boolean;
   boardZoom: number;
+  showPrivacyScreen: boolean;
 
   setTiles(tiles: Tile[]): void;
   setBoardZoom(zoom: number): void;
+  acknowledgePrivacyScreen(): void;
   startLocal(opts: Parameters<typeof initGame>[0], selfId: string): void;
   setState(state: GameState): void;
   setSelf(id: string | null): void;
@@ -98,11 +100,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   tileOrientations: {},
   hasDrawnThisTurn: false,
   boardZoom: 1,
+  showPrivacyScreen: false,
   setTiles(tiles) {
     set({ tiles });
   },
   setBoardZoom(zoom) {
     set({ boardZoom: zoom });
+  },
+  acknowledgePrivacyScreen() {
+    set({ showPrivacyScreen: false });
   },
   startLocal(opts, selfId) {
     const state = initGame(opts);
@@ -116,7 +122,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     saveLocalGame(state, selfId);
   },
   setState(state) {
-    set({ state });
+    set({ state, hasDrawnThisTurn: state.turnHasDrawn ?? false });
   },
   setSelf(id) {
     set({ selfPlayerId: id });
@@ -199,8 +205,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (move.type === "draw" && state.noAssistance) {
       hasDrawnThisTurn = true;
     }
-    set({ state: res.state, selected: null, hasDrawnThisTurn });
-    if (res.state.code === "LOCAL") saveLocalGame(res.state, selfPlayerId);
+
+    // For local pass-and-play: switch selfPlayerId when the turn advances to
+    // another human player and show the privacy screen.
+    let newSelfId = selfPlayerId;
+    let showPrivacyScreen = false;
+    if (res.state.code === "LOCAL" && res.state.phase === "playing") {
+      const turnAdvanced =
+        res.state.currentPlayerIndex !== state.currentPlayerIndex;
+      if (turnAdvanced) {
+        const newCurrent = res.state.players[res.state.currentPlayerIndex];
+        const hasMultipleHumans =
+          res.state.players.filter((p) => !p.isAI).length > 1;
+        if (!newCurrent.isAI && hasMultipleHumans) {
+          newSelfId = newCurrent.id;
+          showPrivacyScreen = true;
+        }
+      }
+    }
+
+    set({
+      state: res.state,
+      selected: null,
+      hasDrawnThisTurn,
+      selfPlayerId: newSelfId,
+      showPrivacyScreen,
+    });
+    if (res.state.code === "LOCAL") saveLocalGame(res.state, newSelfId);
     return { ok: true };
   },
   stepAIIfNeeded() {
@@ -212,8 +243,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const move = chooseAIMove(state, cur.id, rng);
     const res = applyMove(state, cur.id, move, tiles);
     if (res.ok) {
-      set({ state: res.state });
-      if (res.state.code === "LOCAL") saveLocalGame(res.state, selfPlayerId);
+      // For local pass-and-play: if the AI's move advances to a human player,
+      // switch selfPlayerId and show the privacy screen.
+      let newSelfId = selfPlayerId;
+      let showPrivacyScreen = false;
+      if (res.state.code === "LOCAL" && res.state.phase === "playing") {
+        const turnAdvanced =
+          res.state.currentPlayerIndex !== state.currentPlayerIndex;
+        if (turnAdvanced) {
+          const newCurrent = res.state.players[res.state.currentPlayerIndex];
+          const hasMultipleHumans =
+            res.state.players.filter((p) => !p.isAI).length > 1;
+          if (!newCurrent.isAI && hasMultipleHumans) {
+            newSelfId = newCurrent.id;
+            showPrivacyScreen = true;
+          }
+        }
+      }
+      set({ state: res.state, selfPlayerId: newSelfId, showPrivacyScreen });
+      if (res.state.code === "LOCAL") saveLocalGame(res.state, newSelfId);
     }
   },
   startDrag(tileId, orientation, flip, curX, curY, originX, originY) {
@@ -247,9 +295,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     clearLocalGame();
     set({
       state: null,
+      selfPlayerId: null,
       selected: null,
       dragging: null,
+      tileOrientations: {},
       hasDrawnThisTurn: false,
+      showPrivacyScreen: false,
     });
   },
 }));

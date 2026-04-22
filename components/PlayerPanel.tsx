@@ -1,23 +1,74 @@
 "use client";
 import { useState } from "react";
 import type { GameState } from "@/lib/types";
+import { TileSvg } from "@/components/Tile";
 
 export function PlayerPanel({
   state,
+  selfPlayerId,
   onLeave,
 }: {
   state: GameState;
+  selfPlayerId?: string | null;
   onLeave?: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
 
   return (
     <>
+      {/* ── Row 1: header bar ── */}
       <div
         style={{
           display: "flex",
-          gap: 8,
-          padding: "8px 12px",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 12px",
+          height: 36,
+          background: "#1b2028",
+          borderBottom: "1px solid #2a2f3a",
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            fontWeight: 700,
+            fontSize: 15,
+            letterSpacing: "0.03em",
+            color: "#4ade80",
+            fontFamily: "monospace",
+          }}
+        >
+          chromino
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 12, color: "#aaa" }}>
+            剩 {state.bag.length} 张
+          </span>
+          {onLeave && (
+            <button
+              onClick={() => setConfirming(true)}
+              style={{
+                fontSize: 12,
+                padding: "2px 8px",
+                background: "transparent",
+                border: "1px solid #4a3030",
+                color: "#f87171",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              退出
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Row 2: player cards (horizontally scrollable) ── */}
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          padding: "6px 10px",
           background: "#1b2028",
           borderBottom: "1px solid #2a2f3a",
           overflowX: "auto",
@@ -29,62 +80,140 @@ export function PlayerPanel({
           const active =
             i === state.currentPlayerIndex && state.phase === "playing";
           const winner = state.winners.includes(p.id);
+          const lastTile = p.hand.length === 1;
+
+          // Build status emoji string
+          const statusEmoji = [
+            p.aiTakeover ? "🤖" : p.isAI ? "🤖" : null,
+            p.isHost ? "👑" : null,
+            winner ? "🏆" : null,
+          ]
+            .filter(Boolean)
+            .join("");
+
           return (
             <div
               key={p.id}
               style={{
-                padding: "5px 8px",
+                padding: "4px 7px",
                 borderRadius: 6,
                 background: active ? "#2a3141" : "#222836",
                 border: active ? "1px solid #4ade80" : "1px solid #2a2f3a",
                 color: winner ? "#fbbf24" : "#eee",
-                minWidth: 80,
                 flexShrink: 0,
+                opacity: p.aiTakeover ? 0.75 : 1,
+                minWidth: 64,
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
               }}
             >
-              <div style={{ fontWeight: 600, fontSize: 13 }}>
-                {p.name}
-                {p.isAI && " 🤖"}
-                {p.isHost && " 👑"}
-                {winner && " 🏆"}
+              {/* Line 1: player name + self badge */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                  }}
+                >
+                  {p.name}
+                </span>
+                {p.id === selfPlayerId && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: "#6b7280",
+                      background: "rgba(107,114,128,0.15)",
+                      border: "1px solid rgba(107,114,128,0.3)",
+                      borderRadius: 3,
+                      padding: "0 3px",
+                      lineHeight: "14px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    我
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize: 11, color: "#aaa" }}>
-                {p.hand.length} 张牌{p.connected === false && " · 已断线"}
+
+              {/* Line 2: status + hand count + tile icon [+ last tile face] */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                  flexWrap: "nowrap",
+                }}
+              >
+                {statusEmoji && (
+                  <span style={{ fontSize: 10, lineHeight: 1 }}>
+                    {statusEmoji}
+                  </span>
+                )}
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: lastTile ? "#fbbf24" : "#aaa",
+                    fontWeight: lastTile ? 600 : 400,
+                  }}
+                >
+                  {p.hand.length}
+                </span>
+                {/* Generic tile icon: three small squares */}
+                <svg
+                  width={24}
+                  height={8}
+                  viewBox="0 0 24 8"
+                  style={{ display: "block", flexShrink: 0 }}
+                >
+                  {[0, 8, 16].map((x) => (
+                    <rect
+                      key={x}
+                      x={x}
+                      y={0}
+                      width={7}
+                      height={7}
+                      rx={1}
+                      fill={lastTile ? "#fbbf24" : "#555"}
+                    />
+                  ))}
+                </svg>
+                {lastTile && (
+                  <>
+                    <TileSvg tile={p.hand[0]} size={14} orientation="h" />
+                    <span
+                      style={{
+                        fontSize: 9,
+                        color: "#fbbf24",
+                        background: "rgba(251,191,36,0.15)",
+                        border: "1px solid rgba(251,191,36,0.4)",
+                        borderRadius: 3,
+                        padding: "0 3px",
+                        lineHeight: "14px",
+                      }}
+                    >
+                      公开
+                    </span>
+                  </>
+                )}
+                {p.connected === false && !p.aiTakeover && (
+                  <span style={{ fontSize: 9, color: "#6b7280" }}>断线</span>
+                )}
               </div>
             </div>
           );
         })}
-        <div
-          style={{
-            marginLeft: "auto",
-            alignSelf: "center",
-            fontSize: 11,
-            color: "#aaa",
-            flexShrink: 0,
-            paddingLeft: 4,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          剩 {state.bag.length} 张
-          {onLeave && (
-            <button
-              onClick={() => setConfirming(true)}
-              style={{
-                fontSize: 11,
-                padding: "2px 8px",
-                background: "transparent",
-                border: "1px solid #4a3030",
-                color: "#f87171",
-                borderRadius: 4,
-                cursor: "pointer",
-              }}
-            >
-              退出房间
-            </button>
-          )}
-        </div>
       </div>
 
       {confirming && (

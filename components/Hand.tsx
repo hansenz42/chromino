@@ -1,6 +1,6 @@
 "use client";
 import { useLayoutEffect, useRef } from "react";
-import type { GameState, Orientation } from "@/lib/types";
+import type { GameState, Move, Orientation } from "@/lib/types";
 import { useGameStore } from "@/lib/game-store";
 import { TileSvg } from "./Tile";
 import { hasAnyLegalPlay } from "@/lib/game-engine";
@@ -8,7 +8,17 @@ import { hasAnyLegalPlay } from "@/lib/game-engine";
 const CELL = 48;
 const HAND_CELL = 32;
 
-export function Hand({ state }: { state: GameState }) {
+export function Hand({
+  state,
+  onPlay,
+}: {
+  state: GameState;
+  /**
+   * If provided, intercepts draw/pass actions (remote mode).
+   * When absent the store's `play()` is called directly (local mode).
+   */
+  onPlay?: (m: Move) => void;
+}) {
   const {
     selfPlayerId,
     selected,
@@ -20,7 +30,6 @@ export function Hand({ state }: { state: GameState }) {
     dragging,
     clearDrag,
     tileOrientations,
-    hasDrawnThisTurn,
     boardZoom,
   } = useGameStore();
 
@@ -72,9 +81,11 @@ export function Hand({ state }: { state: GameState }) {
   const isMyTurn =
     state.players[state.currentPlayerIndex]?.id === me.id &&
     state.phase === "playing";
-  // In no-assistance mode: can only draw once per turn (before drawing)
+  // In no-assistance mode: can draw only once per turn.
+  // Use state.turnHasDrawn (set by the engine) so both local and remote modes
+  // are driven by the same authoritative game state.
   const canDraw = state.noAssistance
-    ? isMyTurn && !hasDrawnThisTurn
+    ? isMyTurn && !state.turnHasDrawn
     : isMyTurn && !hasAnyLegalPlay(state, me.id);
 
   function makeTilePointerDown(tileId: number) {
@@ -182,8 +193,8 @@ export function Hand({ state }: { state: GameState }) {
         flexDirection: "column",
         gap: 8,
         padding: "10px 12px",
-        background: "#1b2028",
-        borderTop: "1px solid #2a2f3a",
+        background: isMyTurn ? "#1e2a1e" : "#1b2028",
+        borderTop: isMyTurn ? "1px solid #4ade80" : "1px solid #2a2f3a",
         flexShrink: 0,
       }}
     >
@@ -196,8 +207,9 @@ export function Hand({ state }: { state: GameState }) {
       >
         <strong style={{ color: isMyTurn ? "#4ade80" : "#aaa" }}>
           {isMyTurn
-            ? "轮到您了"
-            : `等待中 — ${state.players[state.currentPlayerIndex]?.name}`}
+            ? "请出牌"
+            : // : `等待中 — ${state.players[state.currentPlayerIndex]?.name}`}
+              `等待中`}
         </strong>
         <div style={{ display: "flex", gap: 8 }}>
           <button disabled={!selected} onClick={rotateLeft}>
@@ -206,11 +218,16 @@ export function Hand({ state }: { state: GameState }) {
           <button disabled={!selected} onClick={rotateRight}>
             ↻
           </button>
-          {state.noAssistance && hasDrawnThisTurn ? (
+          {isMyTurn && state.noAssistance && state.turnHasDrawn ? (
             <button
               onClick={() => {
-                const r = play({ type: "pass" });
-                if (!r.ok) alert(r.error);
+                const m: Move = { type: "pass" };
+                if (onPlay) {
+                  onPlay(m);
+                } else {
+                  const r = play(m);
+                  if (!r.ok) alert(r.error);
+                }
               }}
             >
               结束回合
@@ -219,13 +236,18 @@ export function Hand({ state }: { state: GameState }) {
             <button
               disabled={!canDraw}
               onClick={() => {
-                const r = play({ type: "draw" });
-                if (!r.ok) alert(r.error);
+                const m: Move = { type: "draw" };
+                if (onPlay) {
+                  onPlay(m);
+                } else {
+                  const r = play(m);
+                  if (!r.ok) alert(r.error);
+                }
               }}
             >
               {state.bag.length === 0
                 ? "跳过"
-                : `摘牌（剩 ${state.bag.length} 张）`}
+                : `摘牌 - 剩 ${state.bag.length}`}
             </button>
           )}
         </div>

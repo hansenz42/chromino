@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loadGame, saveGame } from "@/lib/kv";
+import { loadGame, saveGame, trySaveGame } from "@/lib/kv";
 import type { Player } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,15 +30,20 @@ export async function POST(
   const state = await loadGame(code);
   if (!state) return NextResponse.json({ error: "not found" }, { status: 404 });
 
+  const prevVersion = state.version;
   const existing = state.players.find((p) => p.id === playerId);
   if (existing) {
+    // Reconnect: do not mutate disbanded/ended games.
+    if (state.phase === "disbanded" || state.phase === "ended") {
+      return NextResponse.json(state);
+    }
     existing.connected = true;
     existing.name = name;
   } else {
     if (state.phase !== "lobby") {
       return NextResponse.json({ error: "游戏已开始" }, { status: 409 });
     }
-    if (state.players.length >= 4) {
+    if (state.players.length >= 8) {
       return NextResponse.json({ error: "game full" }, { status: 409 });
     }
     const player: Player = {
@@ -53,6 +58,11 @@ export async function POST(
     state.log.push(`${name} joined`);
   }
   state.version++;
-  await saveGame(state);
+  const saved = await trySaveGame(state, prevVersion);
+  if (!saved) {
+    // Concurrent join: reload and return current state (player may already be in)
+    const latest = await loadGame(code);
+    return NextResponse.json(latest ?? state);
+  }
   return NextResponse.json(state);
 }

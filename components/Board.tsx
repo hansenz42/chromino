@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { GameState, Tile } from "@/lib/types";
+import type { GameState, Move, Tile } from "@/lib/types";
 import { cellFill } from "./Tile";
 import {
   getValidPlacements,
@@ -17,9 +17,14 @@ export interface BoardProps {
   tiles: Tile[];
   /** If set, we highlight legal placements and handle click-to-place. */
   selectedTileId: number | null;
+  /**
+   * If provided, intercepts tile placements (remote mode).
+   * When absent the store's `play()` is called directly (local mode).
+   */
+  onPlay?: (m: Move) => void;
 }
 
-export function Board({ state, tiles, selectedTileId }: BoardProps) {
+export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
   const { selected, play, setBoardZoom, dragging } = useGameStore();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -111,14 +116,19 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
     if (!selectedTile || !selected) return;
     const match = candidates.find((c) => c.x === cx && c.y === cy);
     if (!match) return;
-    play({
+    const m: Move = {
       type: "play",
       tileId: selectedTile.id,
       x: cx,
       y: cy,
       orientation: selected.orientation,
       flip: selected.flip,
-    });
+    };
+    if (onPlay) {
+      onPlay(m);
+    } else {
+      play(m);
+    }
   }
 
   // ── Pointer handlers (pan + pinch-zoom, works with mouse and touch) ──────
@@ -214,13 +224,13 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
     const anchors: [number, number][] =
       dragging.orientation === "h"
         ? [
-            [gridX, gridY],
             [gridX - 1, gridY],
+            [gridX, gridY],
             [gridX - 2, gridY],
           ]
         : [
-            [gridX, gridY],
             [gridX, gridY - 1],
+            [gridX, gridY],
             [gridX, gridY - 2],
           ];
     for (const [ax, ay] of anchors) {
@@ -234,6 +244,18 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
           dragging.flip,
         ).valid
       ) {
+        if (onPlay) {
+          onPlay({
+            type: "play",
+            tileId: dragging.tileId,
+            x: ax,
+            y: ay,
+            orientation: dragging.orientation,
+            flip: dragging.flip,
+          });
+          store.clearDrag();
+          return;
+        }
         const res = play({
           type: "play",
           tileId: dragging.tileId,
@@ -280,18 +302,18 @@ export function Board({ state, tiles, selectedTileId }: BoardProps) {
     const anchors: [number, number][] =
       dragging.orientation === "h"
         ? [
-            [gridX, gridY],
             [gridX - 1, gridY],
+            [gridX, gridY],
             [gridX - 2, gridY],
           ]
         : [
-            [gridX, gridY],
             [gridX, gridY - 1],
+            [gridX, gridY],
             [gridX, gridY - 2],
           ];
-    // Use first valid anchor, or fall back to raw grid position
-    let targetX = gridX;
-    let targetY = gridY;
+    // Use first valid anchor, or fall back to center-aligned grid position
+    let targetX = dragging.orientation === "h" ? gridX - 1 : gridX;
+    let targetY = dragging.orientation === "h" ? gridY : gridY - 1;
     for (const [ax, ay] of anchors) {
       if (
         validatePlacement(

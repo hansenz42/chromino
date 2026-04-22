@@ -14,15 +14,19 @@ export async function POST(req: Request) {
 
   // Find a free code (a few retries should be plenty at small scale).
   let code = "";
+  let found = false;
   for (let i = 0; i < 10; i++) {
     code = generateMatchCode();
     const existing = await loadGame(code);
-    if (!existing) break;
+    if (!existing) {
+      found = true;
+      break;
+    }
   }
-  if (!code)
+  if (!found)
     return NextResponse.json(
       { error: "could not allocate code" },
-      { status: 500 },
+      { status: 503 },
     );
 
   const host: Player = {
@@ -46,6 +50,8 @@ export async function POST(req: Request) {
     finalRoundDone: {},
     version: 1,
     log: [`${hostName} created the game`],
+    lobbyAiSeats: 0,
+    lobbyNoAssistance: false,
   };
   await saveGame(lobby);
   return NextResponse.json({ code });

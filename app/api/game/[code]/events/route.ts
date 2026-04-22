@@ -21,7 +21,8 @@ export async function GET(
     async start(controller) {
       function send(event: string, data: unknown) {
         if (closed) return;
-        const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        // The `retry:` field tells browsers to wait 3 s before auto-reconnecting.
+        const payload = `retry: 3000\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
         try {
           controller.enqueue(encoder.encode(payload));
         } catch {
@@ -61,6 +62,8 @@ export async function GET(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      // Tell the browser to wait 3s before reconnecting after a dropped connection.
+      "X-Accel-Buffering": "no",
     },
   });
 }

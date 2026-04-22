@@ -10,8 +10,16 @@ import type { Player } from "@/lib/types";
 
 export default function LocalGamePage() {
   const tiles = useMemo(() => generateAllTiles(), []);
-  const { state, setTiles, stepAIIfNeeded, selected, resetGame } =
-    useGameStore();
+  const {
+    state,
+    setTiles,
+    stepAIIfNeeded,
+    selected,
+    resetGame,
+    selfPlayerId,
+    showPrivacyScreen,
+    acknowledgePrivacyScreen,
+  } = useGameStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -30,7 +38,7 @@ export default function LocalGamePage() {
     if (!state || state.phase !== "playing") return;
     const cur = state.players[state.currentPlayerIndex];
     if (cur.isAI) {
-      const t = setTimeout(() => stepAIIfNeeded(), 600);
+      const t = setTimeout(() => stepAIIfNeeded(), 1000);
       return () => clearTimeout(t);
     }
   }, [state, stepAIIfNeeded]);
@@ -48,7 +56,11 @@ export default function LocalGamePage() {
     <main
       style={{ display: "flex", flexDirection: "column", height: "100dvh" }}
     >
-      <PlayerPanel state={state} onLeave={handleLeave} />
+      <PlayerPanel
+        state={state}
+        selfPlayerId={selfPlayerId}
+        onLeave={handleLeave}
+      />
       <div
         style={{
           flex: 1,
@@ -60,6 +72,12 @@ export default function LocalGamePage() {
         <Board state={state} tiles={tiles} selectedTileId={selectedTileId} />
       </div>
       <Hand state={state} />
+      {showPrivacyScreen && (
+        <PrivacyScreen
+          playerName={state.players[state.currentPlayerIndex].name}
+          onAcknowledge={acknowledgePrivacyScreen}
+        />
+      )}
       {state.phase === "ended" && (
         <EndOverlay
           winners={state.winners}
@@ -71,6 +89,61 @@ export default function LocalGamePage() {
         />
       )}
     </main>
+  );
+}
+
+function PrivacyScreen({
+  playerName,
+  onAcknowledge,
+}: {
+  playerName: string;
+  onAcknowledge: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "#111827",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 24,
+        zIndex: 100,
+      }}
+    >
+      <p style={{ color: "#9ca3af", margin: 0, fontSize: 14 }}>
+        请将设备传递给
+      </p>
+      <p
+        style={{
+          color: "#f9fafb",
+          margin: 0,
+          fontSize: 28,
+          fontWeight: 700,
+          letterSpacing: "0.01em",
+        }}
+      >
+        {playerName}
+      </p>
+      <button
+        onClick={onAcknowledge}
+        style={{
+          marginTop: 8,
+          padding: "12px 32px",
+          background: "#4ade80",
+          color: "#111827",
+          border: "none",
+          borderRadius: 8,
+          fontSize: 16,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        开始我的回合
+      </button>
+    </div>
   );
 }
 

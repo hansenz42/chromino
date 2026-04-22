@@ -1,12 +1,5 @@
 "use client";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useGameStore } from "@/lib/game-store";
 import { Board } from "@/components/Board";
@@ -29,8 +22,8 @@ export default function RemoteGamePage() {
     useGameStore();
   const [joining, setJoining] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [aiSeats, setAiSeats] = useState(1);
-  const [noAssistance, setNoAssistance] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
+  const [disbanded, setDisbanded] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -39,12 +32,16 @@ export default function RemoteGamePage() {
 
   // Initial join, then subscribe to SSE.
   useEffect(() => {
-    const playerId = localStorage.getItem(PID_KEY);
-    const nickname = localStorage.getItem(NICK_KEY) ?? "玩家";
+    let playerId = localStorage.getItem(PID_KEY);
     if (!playerId) {
-      router.replace("/");
-      return;
+      // First-ever visit: generate a persistent ID instead of silently redirecting.
+      playerId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : "p_" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(PID_KEY, playerId);
     }
+    const nickname = localStorage.getItem(NICK_KEY) ?? "玩家";
     setSelf(playerId);
     localStorage.setItem(LAST_GAME_KEY, code);
 
@@ -72,12 +69,13 @@ export default function RemoteGamePage() {
           try {
             const next = JSON.parse((ev as MessageEvent).data) as GameState;
             setState(next);
+            setIsConnected(true);
           } catch {
             /* ignore */
           }
         });
         es.addEventListener("error", () => {
-          // Auto-reconnect is built in; do nothing.
+          setIsConnected(false);
         });
       } catch (e) {
         setError(e instanceof Error ? e.message : "join failed");
@@ -91,14 +89,14 @@ export default function RemoteGamePage() {
     };
   }, [code, router, setSelf, setState]);
 
-  // Redirect all clients when room is disbanded
+  // Show disbanded screen instead of silently redirecting
   useEffect(() => {
     if (state?.phase === "disbanded") {
       esRef.current?.close();
       localStorage.removeItem(LAST_GAME_KEY);
-      router.push("/");
+      setDisbanded(true);
     }
-  }, [state?.phase, router]);
+  }, [state?.phase]);
 
   async function handleLeave() {
     const amHost = state?.players.find((p) => p.isHost)?.id === selfPlayerId;
@@ -108,6 +106,13 @@ export default function RemoteGamePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hostId: selfPlayerId }),
+      });
+    } else if (selfPlayerId) {
+      // Non-host: notify server so the seat can be AI-taken-over during gameplay
+      await fetch(`/api/game/${code}/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: selfPlayerId }),
       });
     }
     localStorage.removeItem(LAST_GAME_KEY);
@@ -151,8 +156,45 @@ export default function RemoteGamePage() {
   // locally vs the last-seen server version, and forward the last move to the
   // server. To keep it simple, we expose a buffered play action instead.
 
+  if (disbanded)
+    return (
+      <Centered>
+        <div
+          style={{
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 600 }}>房间已解散</div>
+          <div style={{ fontSize: 13, color: "#aaa" }}>该房间已不存在。</div>
+          <a href="/" style={{ color: "#4ade80", fontSize: 14 }}>
+            返回首页
+          </a>
+        </div>
+      </Centered>
+    );
   if (joining) return <Centered>连接中…</Centered>;
-  if (error) return <Centered>错误：{error}</Centered>;
+  if (error)
+    return (
+      <Centered>
+        <div
+          style={{
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 600 }}>加入失败</div>
+          <div style={{ fontSize: 13, color: "#aaa" }}>{error}</div>
+          <a href="/" style={{ color: "#4ade80", fontSize: 14 }}>
+            返回首页
+          </a>
+        </div>
+      </Centered>
+    );
   if (!state) return <Centered>加载中…</Centered>;
 
   if (state.phase === "lobby") {
@@ -161,10 +203,6 @@ export default function RemoteGamePage() {
         state={state}
         code={code}
         selfPlayerId={selfPlayerId}
-        aiSeats={aiSeats}
-        setAiSeats={setAiSeats}
-        noAssistance={noAssistance}
-        setNoAssistance={setNoAssistance}
         onLeave={handleLeave}
       />
     );
@@ -181,7 +219,25 @@ export default function RemoteGamePage() {
     <main
       style={{ display: "flex", flexDirection: "column", height: "100dvh" }}
     >
-      <PlayerPanel state={state} onLeave={handleLeave} />
+      <PlayerPanel
+        state={state}
+        selfPlayerId={selfPlayerId}
+        onLeave={handleLeave}
+      />
+      {!isConnected && (
+        <div
+          style={{
+            background: "#7c2d12",
+            color: "#fed7aa",
+            textAlign: "center",
+            padding: "6px 12px",
+            fontSize: 13,
+            flexShrink: 0,
+          }}
+        >
+          连接已断开，正在重连…
+        </div>
+      )}
       <div
         style={{
           flex: 1,
@@ -190,16 +246,14 @@ export default function RemoteGamePage() {
           overflow: "hidden",
         }}
       >
-        {/* Remote Board: intercept clicks on candidate cells */}
-        <RemoteBoard
+        <Board
           state={state}
           tiles={tiles}
-          selectedTileId={selectedTileId}
-          disabled={!isMyTurn}
+          selectedTileId={isMyTurn ? selectedTileId : null}
           onPlay={postAction}
         />
       </div>
-      <RemoteHand state={state} disabled={!isMyTurn} onPlay={postAction} />
+      <Hand state={state} onPlay={isMyTurn ? postAction : undefined} />
       {state.phase === "ended" && <EndOverlay state={state} />}
     </main>
   );
@@ -224,30 +278,46 @@ function Lobby({
   state,
   code,
   selfPlayerId,
-  aiSeats,
-  setAiSeats,
-  noAssistance,
-  setNoAssistance,
   onLeave,
 }: {
   state: GameState;
   code: string;
   selfPlayerId: string | null;
-  aiSeats: number;
-  setAiSeats: (n: number) => void;
-  noAssistance: boolean;
-  setNoAssistance: (v: boolean) => void;
   onLeave: () => void;
 }) {
   const host = state.players.find((p) => p.isHost);
   const isHost = host?.id === selfPlayerId;
   const [confirming, setConfirming] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const aiSeats = state.lobbyAiSeats ?? 0;
+  const noAssistance = state.lobbyNoAssistance ?? false;
+  const total = state.players.length + aiSeats;
+
+  function copyCode() {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  async function patchSettings(patch: {
+    aiSeats?: number;
+    noAssistance?: boolean;
+  }) {
+    await fetch(`/api/game/${code}/lobby-settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hostId: selfPlayerId, ...patch }),
+    });
+  }
 
   async function start() {
+    // Settings are already stored in state; no need to re-send them.
     await fetch(`/api/game/${code}/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hostId: selfPlayerId, aiSeats, noAssistance }),
+      body: JSON.stringify({ hostId: selfPlayerId }),
     });
   }
   async function kick(targetId: string) {
@@ -257,8 +327,6 @@ function Lobby({
       body: JSON.stringify({ hostId: selfPlayerId, targetId }),
     });
   }
-
-  const total = state.players.length + aiSeats;
 
   return (
     <>
@@ -283,9 +351,44 @@ function Lobby({
             border: "1px solid #2a2f3a",
           }}
         >
-          <h2 style={{ margin: 0 }}>大厅 · {code}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2 style={{ margin: 0 }}>大厅</h2>
+            <button
+              onClick={copyCode}
+              title="点击复制邀请码"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: "1px solid #3a4050",
+                background: copied ? "#1a2e1f" : "#222836",
+                color: copied ? "#4ade80" : "#e0e0e0",
+                fontSize: 15,
+                fontWeight: 700,
+                letterSpacing: 2,
+                cursor: "pointer",
+                transition: "background 0.15s, color 0.15s",
+                fontFamily: "monospace",
+              }}
+            >
+              {code}
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 400,
+                  letterSpacing: 0,
+                  fontFamily: "sans-serif",
+                  opacity: 0.7,
+                }}
+              >
+                {copied ? "已复制 ✓" : "复制"}
+              </span>
+            </button>
+          </div>
           <p style={{ margin: 0, color: "#aaa", fontSize: 13 }}>
-            将此代码分享给朋友。总人数 1–4（包含 AI）。
+            将此代码分享给朋友。总人数 1–8（包含 AI）。
           </p>
           <ul
             style={{
@@ -321,54 +424,135 @@ function Lobby({
               </li>
             ))}
           </ul>
+          {/* AI seat rows — visible to all players */}
+          {aiSeats > 0 && (
+            <ul
+              style={{
+                listStyle: "none",
+                padding: 0,
+                margin: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              {Array.from({ length: aiSeats }, (_, i) => (
+                <li
+                  key={i}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 12px",
+                    minHeight: 44,
+                    background: "#1e2535",
+                    borderRadius: 6,
+                    border: "1px dashed #3a4050",
+                  }}
+                >
+                  <span style={{ color: "#aaa", fontSize: 13 }}>
+                    🤖 AI {i + 1}
+                  </span>
+                  {isHost && (
+                    <button
+                      onClick={() => patchSettings({ aiSeats: aiSeats - 1 })}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid #4a3030",
+                        color: "#f87171",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        padding: "2px 8px",
+                        fontSize: 13,
+                      }}
+                    >
+                      移除
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
           {isHost && (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <label>AI 平位：</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={Math.max(0, 4 - state.players.length)}
-                  value={aiSeats}
-                  onChange={(e) =>
-                    setAiSeats(
-                      Math.max(0, Math.min(3, Number(e.target.value) || 0)),
-                    )
-                  }
-                  style={{ width: 60 }}
-                />
-                <span style={{ color: "#888", fontSize: 12 }}>
-                  总计：{total}
-                </span>
-              </div>
-              <label
+              {total < 8 && (
+                <button
+                  onClick={() => patchSettings({ aiSeats: aiSeats + 1 })}
+                  style={{
+                    background: "transparent",
+                    border: "1px dashed #3a4050",
+                    color: "#888",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    padding: "10px 12px",
+                    fontSize: 13,
+                    textAlign: "left",
+                  }}
+                >
+                  + 添加 AI
+                </button>
+              )}
+              {/* No-assistance card selector */}
+              <div
                 style={{
-                  display: "flex",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
                   gap: 8,
-                  alignItems: "center",
-                  fontSize: 13,
-                  color: "#aaa",
-                  cursor: "pointer",
+                  borderTop: "1px solid #2a2f3a",
+                  paddingTop: 10,
+                  marginTop: 2,
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={noAssistance}
-                  onChange={(e) => setNoAssistance(e.target.checked)}
-                />
-                <span>
-                  <strong style={{ color: noAssistance ? "#f59e0b" : "#fff" }}>
-                    无辅助模式
-                  </strong>
-                  {" — 隐藏可放置高亮，需拖拽放牌"}
-                </span>
-              </label>
+                {(
+                  [
+                    {
+                      value: true,
+                      label: "线下模式",
+                      sub: "无辅助 · 需拖拽放牌",
+                    },
+                    {
+                      value: false,
+                      label: "辅助模式",
+                      sub: "新手友好 · 高亮提示",
+                    },
+                  ] as { value: boolean; label: string; sub: string }[]
+                ).map(({ value, label, sub }) => {
+                  const active = noAssistance === value;
+                  return (
+                    <button
+                      key={String(value)}
+                      onClick={() => patchSettings({ noAssistance: value })}
+                      style={{
+                        padding: "10px 8px",
+                        borderRadius: 8,
+                        border: active
+                          ? "2px solid #4ade80"
+                          : "2px solid #2a2f3a",
+                        background: active ? "#1a2e1f" : "transparent",
+                        color: active ? "#4ade80" : "#888",
+                        cursor: "pointer",
+                        textAlign: "center",
+                        lineHeight: 1.4,
+                        transition:
+                          "border-color 0.15s, background 0.15s, color 0.15s",
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>
+                        {label}
+                      </div>
+                      <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>
+                        {sub}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </>
           )}
           {isHost ? (
             <button
               onClick={start}
-              disabled={total < 1 || total > 4}
+              disabled={total < 1 || total > 8}
               style={{ background: "#4ade80", color: "#111" }}
             >
               开始游戏
@@ -482,539 +666,6 @@ function EndOverlay({ state }: { state: GameState }) {
         </p>
         <a href="/">返回主菜单</a>
       </div>
-    </div>
-  );
-}
-
-/* Remote wrappers: the shared Board/Hand components call the store directly
- * which is fine for local games. For remote games we want clicks to POST
- * instead. We provide thin wrappers that re-implement just the click paths
- * and reuse everything else visually. */
-
-import { TileSvg } from "@/components/Tile";
-import {
-  getValidPlacements,
-  tileFootprint,
-  validatePlacement,
-} from "@/lib/placement-validator";
-import { hasAnyLegalPlay } from "@/lib/game-engine";
-import { WILD_STROKE } from "@/lib/colors";
-import { cellFill } from "@/components/Tile";
-
-const CELL = 48;
-const HAND_CELL = 32;
-
-function RemoteBoard({
-  state,
-  tiles,
-  selectedTileId,
-  disabled,
-  onPlay,
-}: {
-  state: GameState;
-  tiles: import("@/lib/types").Tile[];
-  selectedTileId: number | null;
-  disabled: boolean;
-  onPlay: (m: Move) => void;
-}) {
-  const { selected } = useGameStore();
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const dragRef = useRef<{ x: number; y: number } | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  const { minX, minY, maxX, maxY } = useMemo(() => {
-    const keys = Object.keys(state.board);
-    if (keys.length === 0) return { minX: -3, minY: -3, maxX: 3, maxY: 3 };
-    let a = Infinity,
-      b = Infinity,
-      c = -Infinity,
-      d = -Infinity;
-    for (const k of keys) {
-      const [xs, ys] = k.split(",");
-      const x = Number(xs);
-      const y = Number(ys);
-      if (x < a) a = x;
-      if (x > c) c = x;
-      if (y < b) b = y;
-      if (y > d) d = y;
-    }
-    return { minX: a - 4, minY: b - 4, maxX: c + 4, maxY: d + 4 };
-  }, [state.board]);
-
-  const widthCells = maxX - minX + 1;
-  const heightCells = maxY - minY + 1;
-  const width = widthCells * CELL;
-  const height = heightCells * CELL;
-
-  const selectedTile = selectedTileId !== null ? tiles[selectedTileId] : null;
-  const candidates = useMemo(() => {
-    if (disabled || !selectedTile || !selected) return [];
-    return getValidPlacements(state, selectedTile).filter(
-      (o) => o.orientation === selected.orientation && o.flip === selected.flip,
-    );
-  }, [state, selectedTile, selected, disabled]);
-
-  function onCellClick(cx: number, cy: number) {
-    if (disabled || !selectedTile || !selected) return;
-    const match = candidates.find((c) => c.x === cx && c.y === cy);
-    if (!match) return;
-    onPlay({
-      type: "play",
-      tileId: selectedTile.id,
-      x: cx,
-      y: cy,
-      orientation: selected.orientation,
-      flip: selected.flip,
-    });
-  }
-
-  return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        overflow: "hidden",
-        background: "#141820",
-        touchAction: "none",
-      }}
-      onMouseDown={(e) => {
-        if (e.button !== 0 || (e.target as Element).tagName !== "svg") return;
-        dragRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-      }}
-      onMouseMove={(e) => {
-        if (!dragRef.current) return;
-        setPan({
-          x: e.clientX - dragRef.current.x,
-          y: e.clientY - dragRef.current.y,
-        });
-      }}
-      onMouseUp={() => (dragRef.current = null)}
-      onMouseLeave={() => (dragRef.current = null)}
-      onWheel={(e) => {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        setZoom((z) => Math.max(0.3, Math.min(2.5, z * delta)));
-      }}
-      onPointerUp={(e) => {
-        const store = useGameStore.getState();
-        const { dragging } = store;
-        if (!dragging || dragging.cancelling || !state.noAssistance) return;
-        if (!svgRef.current) {
-          store.cancelDrag();
-          return;
-        }
-        const svgRect = svgRef.current.getBoundingClientRect();
-        if (
-          e.clientX < svgRect.left ||
-          e.clientX > svgRect.right ||
-          e.clientY < svgRect.top ||
-          e.clientY > svgRect.bottom
-        )
-          return;
-        const tile = tiles[dragging.tileId];
-        if (!tile) {
-          store.cancelDrag();
-          return;
-        }
-        const pixX = e.clientX - svgRect.left;
-        const pixY = e.clientY - svgRect.top;
-        const viewX = (pixX / svgRect.width) * width + minX * CELL;
-        const viewY = (pixY / svgRect.height) * height + minY * CELL;
-        const gridX = Math.floor(viewX / CELL);
-        const gridY = Math.floor(viewY / CELL);
-        const anchors: [number, number][] =
-          dragging.orientation === "h"
-            ? [
-                [gridX, gridY],
-                [gridX - 1, gridY],
-                [gridX - 2, gridY],
-              ]
-            : [
-                [gridX, gridY],
-                [gridX, gridY - 1],
-                [gridX, gridY - 2],
-              ];
-        for (const [ax, ay] of anchors) {
-          if (
-            validatePlacement(
-              state,
-              tile,
-              ax,
-              ay,
-              dragging.orientation,
-              dragging.flip,
-            ).valid
-          ) {
-            onPlay({
-              type: "play",
-              tileId: dragging.tileId,
-              x: ax,
-              y: ay,
-              orientation: dragging.orientation,
-              flip: dragging.flip,
-            });
-            store.clearDrag();
-            return;
-          }
-        }
-        store.cancelDrag();
-      }}
-    >
-      <div
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: "50% 50%",
-          width,
-          height,
-          margin: "0 auto",
-        }}
-      >
-        <svg
-          ref={svgRef}
-          width={width}
-          height={height}
-          viewBox={`${minX * CELL} ${minY * CELL} ${width} ${height}`}
-        >
-          {Array.from({ length: widthCells + 1 }, (_, i) => (
-            <line
-              key={`vx${i}`}
-              x1={(minX + i) * CELL}
-              y1={minY * CELL}
-              x2={(minX + i) * CELL}
-              y2={(maxY + 1) * CELL}
-              stroke="#222a36"
-            />
-          ))}
-          {Array.from({ length: heightCells + 1 }, (_, i) => (
-            <line
-              key={`hy${i}`}
-              x1={minX * CELL}
-              y1={(minY + i) * CELL}
-              x2={(maxX + 1) * CELL}
-              y2={(minY + i) * CELL}
-              stroke="#222a36"
-            />
-          ))}
-          {Object.entries(state.board).map(([k, cell]) => {
-            const [xs, ys] = k.split(",");
-            const x = Number(xs);
-            const y = Number(ys);
-            return (
-              <g key={k}>
-                <rect
-                  x={x * CELL}
-                  y={y * CELL}
-                  width={CELL}
-                  height={CELL}
-                  fill={cellFill(cell)}
-                  stroke={cell === "wild" ? WILD_STROKE : "#111"}
-                />
-                {cell === "wild" && (
-                  <circle
-                    cx={x * CELL + CELL / 2}
-                    cy={y * CELL + CELL / 2}
-                    r={CELL * 0.22}
-                    fill="none"
-                    stroke={WILD_STROKE}
-                    strokeWidth={2}
-                  />
-                )}
-              </g>
-            );
-          })}
-          {!state.noAssistance &&
-            candidates.map((c, idx) => {
-              const fp = tileFootprint(c.x, c.y, c.orientation);
-              return (
-                <g key={`cand-${idx}`}>
-                  {fp.map(([fx, fy], i) => (
-                    <rect
-                      key={i}
-                      x={fx * CELL}
-                      y={fy * CELL}
-                      width={CELL}
-                      height={CELL}
-                      fill="#ffffff22"
-                      stroke="#ffffff88"
-                      strokeDasharray="4 3"
-                      onClick={() => onCellClick(c.x, c.y)}
-                      style={{ cursor: "pointer" }}
-                    />
-                  ))}
-                </g>
-              );
-            })}
-        </svg>
-      </div>
-      {/* Reuse Board itself would be nice — we're not for minimal wiring. */}
-      {void tiles /* unused */}
-    </div>
-  );
-}
-
-function RemoteHand({
-  state,
-  disabled,
-  onPlay,
-}: {
-  state: GameState;
-  disabled: boolean;
-  onPlay: (m: Move) => void;
-}) {
-  const {
-    selfPlayerId,
-    selected,
-    select,
-    rotateSelected,
-    flipSelected,
-    tiles,
-    dragging,
-    clearDrag,
-  } = useGameStore();
-  const me = state.players.find((p) => p.id === selfPlayerId);
-
-  // Drag tracking refs (no-assistance mode)
-  const pendingRef = useRef<{
-    tileId: number;
-    pointerId: number;
-    startX: number;
-    startY: number;
-    originX: number;
-    originY: number;
-    orientation: import("@/lib/types").Orientation;
-    flip: boolean;
-    active: boolean;
-  } | null>(null);
-  const dragBlockRef = useRef(false);
-  const floatingRef = useRef<HTMLDivElement>(null);
-
-  // Set initial floating tile position / trigger cancel animation
-  useLayoutEffect(() => {
-    if (!dragging || !floatingRef.current) return;
-    const el = floatingRef.current;
-    const isH = dragging.orientation === "h";
-    if (dragging.cancelling) {
-      el.style.transition = "none";
-      el.style.left = `${dragging.currentX - (isH ? CELL * 1.5 : CELL * 0.5)}px`;
-      el.style.top = `${dragging.currentY - (isH ? CELL * 0.5 : CELL * 1.5)}px`;
-      const frame = requestAnimationFrame(() => {
-        el.style.transition = "left 0.25s ease-in, top 0.25s ease-in";
-        el.style.left = `${dragging.originX - (isH ? CELL * 1.5 : CELL * 0.5)}px`;
-        el.style.top = `${dragging.originY - (isH ? CELL * 0.5 : CELL * 1.5)}px`;
-      });
-      return () => cancelAnimationFrame(frame);
-    } else {
-      el.style.transition = "none";
-      el.style.left = `${dragging.currentX - (isH ? CELL * 1.5 : CELL * 0.5)}px`;
-      el.style.top = `${dragging.currentY - (isH ? CELL * 0.5 : CELL * 1.5)}px`;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragging?.tileId, dragging?.cancelling]);
-
-  if (!me) return null;
-  const canDraw = state.noAssistance
-    ? !disabled
-    : !disabled && !hasAnyLegalPlay(state, me.id);
-
-  function makeTilePointerDown(tileId: number) {
-    if (!state.noAssistance || disabled) return undefined;
-    return (e: React.PointerEvent<HTMLDivElement>) => {
-      // Same fix as Hand.tsx: release on e.target (the actual touched element)
-      // so that pointerup reaches the board on mobile.
-      (e.target as Element).releasePointerCapture(e.pointerId);
-      const el = e.currentTarget;
-      const rect = el.getBoundingClientRect();
-      const curSel = useGameStore.getState().selected;
-      const orientation: import("@/lib/types").Orientation =
-        curSel?.tileId === tileId ? curSel.orientation : "h";
-      const flip: boolean = curSel?.tileId === tileId ? curSel.flip : false;
-      pendingRef.current = {
-        tileId,
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        originX: rect.left + rect.width / 2,
-        originY: rect.top + rect.height / 2,
-        orientation,
-        flip,
-        active: false,
-      };
-
-      const onMove = (ev: PointerEvent) => {
-        if (
-          !pendingRef.current ||
-          ev.pointerId !== pendingRef.current.pointerId
-        )
-          return;
-        const dx = ev.clientX - pendingRef.current.startX;
-        const dy = ev.clientY - pendingRef.current.startY;
-        if (!pendingRef.current.active && Math.hypot(dx, dy) > 5) {
-          pendingRef.current.active = true;
-          dragBlockRef.current = true;
-          const p = pendingRef.current;
-          useGameStore
-            .getState()
-            .startDrag(
-              p.tileId,
-              p.orientation,
-              p.flip,
-              ev.clientX,
-              ev.clientY,
-              p.originX,
-              p.originY,
-            );
-        }
-        if (pendingRef.current.active) {
-          useGameStore.getState().updateDrag(ev.clientX, ev.clientY);
-          if (floatingRef.current) {
-            const isH = pendingRef.current.orientation === "h";
-            floatingRef.current.style.left = `${ev.clientX - (isH ? CELL * 1.5 : CELL * 0.5)}px`;
-            floatingRef.current.style.top = `${ev.clientY - (isH ? CELL * 0.5 : CELL * 1.5)}px`;
-          }
-        }
-      };
-
-      const onUp = (ev: PointerEvent) => {
-        if (
-          !pendingRef.current ||
-          ev.pointerId !== pendingRef.current.pointerId
-        )
-          return;
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-        const wasActive = pendingRef.current.active;
-        pendingRef.current = null;
-        if (wasActive) {
-          const d = useGameStore.getState().dragging;
-          if (d && !d.cancelling) useGameStore.getState().cancelDrag();
-        }
-      };
-
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-    };
-  }
-
-  const dragTile = dragging
-    ? tiles.find((t) => t.id === dragging.tileId)
-    : null;
-
-  return (
-    <div
-      className="safe-bottom"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        padding: "10px 12px",
-        background: "#1b2028",
-        borderTop: "1px solid #2a2f3a",
-        flexShrink: 0,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <strong style={{ color: !disabled ? "#4ade80" : "#aaa" }}>
-          {!disabled
-            ? "轮到您了"
-            : state.phase === "ended"
-              ? "游戏结束"
-              : `等待中 — ${state.players[state.currentPlayerIndex]?.name}`}
-        </strong>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button disabled={!selected || disabled} onClick={rotateSelected}>
-            旋转
-          </button>
-          <button disabled={!selected || disabled} onClick={flipSelected}>
-            翻转
-          </button>
-          <button disabled={!canDraw} onClick={() => onPlay({ type: "draw" })}>
-            {state.bag.length === 0
-              ? "跳过"
-              : `摘牌（剩 ${state.bag.length} 张）`}
-          </button>
-        </div>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "nowrap",
-          overflowX: "auto",
-          overflowY: "hidden",
-          height: HAND_CELL * 3,
-          alignItems: "center",
-        }}
-      >
-        {me.hand.map((t) => {
-          const isSel = selected?.tileId === t.id;
-          const isDraggingThis = dragging?.tileId === t.id;
-          return (
-            <div
-              key={t.id}
-              style={{
-                opacity: isDraggingThis ? 0.3 : 1,
-                width: HAND_CELL * 3,
-                height: HAND_CELL * 3,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <div
-                onPointerDown={makeTilePointerDown(t.id)}
-                style={{ touchAction: "none", display: "flex" }}
-              >
-                <TileSvg
-                  tile={t}
-                  orientation={isSel ? selected!.orientation : "h"}
-                  flip={isSel ? selected!.flip : false}
-                  size={HAND_CELL}
-                  selected={isSel}
-                  onClick={() => {
-                    if (disabled) return;
-                    if (dragBlockRef.current) {
-                      dragBlockRef.current = false;
-                      return;
-                    }
-                    if (isSel) select(null);
-                    else
-                      select({ tileId: t.id, flip: false, orientation: "h" });
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {dragging && dragTile && (
-        <div
-          ref={floatingRef}
-          style={{
-            position: "fixed",
-            pointerEvents: "none",
-            zIndex: 9999,
-            opacity: 0.85,
-          }}
-          onTransitionEnd={(e) => {
-            if (e.propertyName === "left") clearDrag();
-          }}
-        >
-          <TileSvg
-            tile={dragTile}
-            orientation={dragging.orientation}
-            flip={dragging.flip}
-            size={CELL}
-          />
-        </div>
-      )}
     </div>
   );
 }

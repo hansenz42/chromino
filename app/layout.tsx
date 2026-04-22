@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Chromino",
-  description: "一款支持 1–4 人游玩的彩色骨牌游戏，含 AI 对手和在线多人模式。",
+  description: "一款支持 1–8 人游玩的彩色骨牌游戏，含 AI 对手和在线多人模式。",
 };
 
 export const viewport: Viewport = {

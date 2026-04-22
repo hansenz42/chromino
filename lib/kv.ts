@@ -31,6 +31,39 @@ export async function saveGame(state: GameState): Promise<void> {
   );
 }
 
+/**
+ * Atomically save the game only if the currently stored version equals
+ * `prevVersion`. Returns true on success, false if the version has changed
+ * (concurrent update), or throws if the game no longer exists.
+ *
+ * Uses a Lua script so the check-and-set is atomic on the Redis side.
+ */
+const SAVE_IF_VERSION_LUA = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return -1 end
+local ok, obj = pcall(cjson.decode, raw)
+if not ok then return -1 end
+if obj['version'] ~= tonumber(ARGV[2]) then return 0 end
+redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
+return 1
+`;
+
+export async function trySaveGame(
+  state: GameState,
+  prevVersion: number,
+): Promise<boolean> {
+  const result = (await getRedis().eval(
+    SAVE_IF_VERSION_LUA,
+    1,
+    gameKey(state.code),
+    JSON.stringify(state),
+    String(prevVersion),
+    String(TTL_SECONDS),
+  )) as number;
+  // 1 = saved, 0 = version mismatch, -1 = key missing
+  return result === 1;
+}
+
 export async function loadGame(code: string): Promise<GameState | null> {
   const raw = await getRedis().get(gameKey(code));
   if (!raw) return null;

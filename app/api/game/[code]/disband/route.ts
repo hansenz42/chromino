@@ -12,6 +12,9 @@ export async function POST(
   const body = (await req.json()) as { hostId?: string };
   const state = await loadGame(code);
   if (!state) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (state.phase === "disbanded") {
+    return NextResponse.json({ error: "already disbanded" }, { status: 409 });
+  }
   const host = state.players.find((p) => p.isHost);
   if (!host || host.id !== body.hostId) {
     return NextResponse.json(

@@ -17,8 +17,6 @@ export async function POST(
     noAssistance?: boolean;
   };
   const hostId = body.hostId;
-  const aiSeats = Math.max(0, Math.min(3, body.aiSeats ?? 0));
-  const noAssistance = body.noAssistance ?? false;
 
   const lobby = await loadGame(code);
   if (!lobby) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -29,12 +27,23 @@ export async function POST(
   if (!host || host.id !== hostId) {
     return NextResponse.json({ error: "only host can start" }, { status: 403 });
   }
+
+  // Accept overrides from body, but fall back to the lobby-stored settings.
+  const aiSeats =
+    body.aiSeats !== undefined
+      ? Math.max(0, Math.min(7, body.aiSeats))
+      : Math.max(0, Math.min(7, lobby.lobbyAiSeats ?? 0));
+  const noAssistance =
+    body.noAssistance !== undefined
+      ? body.noAssistance
+      : (lobby.lobbyNoAssistance ?? false);
+
   if (
     lobby.players.length + aiSeats < 1 ||
-    lobby.players.length + aiSeats > 4
+    lobby.players.length + aiSeats > 8
   ) {
     return NextResponse.json(
-      { error: "need 1–4 players total" },
+      { error: "need 1–8 players total" },
       { status: 400 },
     );
   }

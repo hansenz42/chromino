@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/lib/game-store";
+import { generateRandomName } from "@/lib/name-generator";
 import type { Player } from "@/lib/types";
 
 const NICK_KEY = "chromino_nickname";
@@ -74,6 +75,9 @@ export default function Home() {
   function goOnline() {
     setShowJoin(false);
     setJoinCode("");
+    if (!nick.trim()) {
+      saveNick(generateRandomName());
+    }
     setView("online");
   }
 
@@ -88,7 +92,7 @@ export default function Home() {
     const myId = localStorage.getItem(PID_KEY) ?? uuid();
     setSeats([
       { id: myId, name: myName, isAI: false },
-      { id: uuid(), name: "AI Bob", isAI: true },
+      { id: uuid(), name: generateRandomName(), isAI: true },
     ]);
     setNoAssistance(true);
     setView("local");
@@ -101,10 +105,10 @@ export default function Home() {
   }
 
   function addSeat() {
-    if (seats.length >= 4) return;
+    if (seats.length >= 8) return;
     setSeats((prev) => [
       ...prev,
-      { id: uuid(), name: `AI ${prev.length + 1}`, isAI: true },
+      { id: uuid(), name: generateRandomName(), isAI: true },
     ]);
   }
 
@@ -185,7 +189,7 @@ export default function Home() {
               Chromino
             </h1>
             <p style={{ margin: 0, color: "#888", fontSize: 13 }}>
-              1–4 人 · 人机对战 · 本地或联机
+              1–8 人 · 人机对战 · 本地或联机
             </p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -240,7 +244,7 @@ export default function Home() {
             <h2 style={{ margin: 0 }}>本地游戏设置</h2>
           </div>
           <p style={{ margin: 0, color: "#aaa", fontSize: 13 }}>
-            添加 1–4 个座位。座位 1 是您；其余可为人类（传递局）或 AI。
+            添加 1–8 个座位。座位 1 是您；其余可为人类（传递局）或 AI。
           </p>
           {seats.map((s, i) => (
             <div
@@ -280,7 +284,7 @@ export default function Home() {
               </button>
             </div>
           ))}
-          <button onClick={addSeat} disabled={seats.length >= 4}>
+          <button onClick={addSeat} disabled={seats.length >= 8}>
             添加玩家
           </button>
           <div
@@ -360,15 +364,25 @@ export default function Home() {
         </div>
 
         {/* name input */}
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <span style={{ fontSize: 13, color: "#aaa" }}>您的名字</span>
-          <input
-            value={nick}
-            onChange={(e) => saveNick(e.target.value)}
-            placeholder="昵称"
-            autoFocus
-          />
-        </label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={nick}
+              onChange={(e) => saveNick(e.target.value)}
+              placeholder="昵称"
+              autoFocus
+              style={{ flex: 1 }}
+            />
+            <button
+              style={btnGhost}
+              onClick={() => saveNick(generateRandomName())}
+              title="随机名字"
+            >
+              🎲 换一个
+            </button>
+          </div>
+        </div>
 
         {/* actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
