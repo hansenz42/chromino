@@ -34,8 +34,8 @@
     "defaultPlayer": "Player",
     "myName": "Me",
     "createFailed": "Failed to create game",
-    "github": "Open Source on GitHub",
-    "devBlog": "Developer Blog"
+    "github": "GitHub",
+    "devBlog": "Dev Blog"
   },
   "game": {
     "connecting": "Connecting…",
