@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import clsx from "clsx";
 import { useGameStore } from "@/lib/game-store";
 import { generateRandomName } from "@/lib/name-generator";
 import type { Player } from "@/lib/types";
 import pkg from "@/package.json";
+import { ChrominoLogo } from "@/components/ChrominoLogo";
 import {
   BTN_GHOST,
   BTN_PRIMARY,
@@ -152,9 +154,23 @@ export default function Home() {
       <main className={MAIN_CLS}>
         <div className={CARD}>
           <div>
-            <h1 className="m-0 mb-1 text-3xl -tracking-[1px]">Chromino</h1>
+            <div className="flex items-center gap-3 mb-1">
+              <ChrominoLogo size={36} />
+              <h1 className="m-0 text-3xl font-chromino font-semibold tracking-wide text-primary">
+                Chromino
+              </h1>
+            </div>
             <p className="m-0 text-subtle text-[13px]">
               1–8 人 · 人机对战 · 本地或联机
+            </p>
+            <p className="m-0 mt-2 text-muted text-[13px] leading-relaxed">
+              一款以多色骨牌为主题的策略游戏，竞相打出手中所有骨牌来获得胜利
+              <Link
+                href="/rules"
+                className="ml-2 text-link no-underline hover:underline"
+              >
+                查看规则 →
+              </Link>
             </p>
           </div>
           <div className="flex flex-col gap-2.5">

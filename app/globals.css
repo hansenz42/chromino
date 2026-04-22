@@ -45,6 +45,7 @@
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  --font-chromino: var(--font-chromino);
 }
 
 :root {

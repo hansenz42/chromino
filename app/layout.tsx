@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { Fredoka } from "next/font/google";
 import "./globals.css";
+
+const fredoka = Fredoka({
+  subsets: ["latin"],
+  weight: ["600"],
+  variable: "--font-chromino",
+});
 
 export const metadata: Metadata = {
   title: "Chromino",
@@ -20,7 +27,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh">
-      <body className="m-0 min-h-dvh bg-bg text-fg font-sans antialiased overscroll-none">
+      <body
+        className={`m-0 min-h-dvh bg-bg text-fg font-sans antialiased overscroll-none ${fredoka.variable}`}
+      >
         {children}
       </body>
     </html>

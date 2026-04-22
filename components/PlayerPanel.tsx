@@ -3,6 +3,7 @@ import { useState } from "react";
 import clsx from "clsx";
 import type { GameState } from "@/lib/types";
 import { TileSvg } from "@/components/Tile";
+import { ChrominoLogo } from "@/components/ChrominoLogo";
 import {
   BTN_DANGER,
   BTN_DANGER_OUTLINE,
@@ -26,15 +27,21 @@ export function PlayerPanel({
     <>
       {/* ── Row 1: header bar ── */}
       <div className="flex items-center justify-between px-3 h-9 bg-surface border-b border-border shrink-0">
-        <span className="font-bold text-[15px] tracking-[0.03em] text-primary font-mono">
-          chromino
-        </span>
+        <div className="flex items-center gap-1.5">
+          <ChrominoLogo size={20} />
+          <span className="font-chromino font-semibold text-[16px] tracking-wide text-primary">
+            chromino
+          </span>
+        </div>
         <div className="flex items-center gap-2.5">
           <span className="text-xs text-muted">剩 {state.bag.length} 张</span>
           {onLeave && (
             <button
               onClick={() => setConfirming(true)}
-              className={clsx(BTN_DANGER_OUTLINE, "!min-h-0 !px-2 !py-0.5 !text-xs")}
+              className={clsx(
+                BTN_DANGER_OUTLINE,
+                "!min-h-0 !px-2 !py-0.5 !text-xs",
+              )}
             >
               退出
             </button>
