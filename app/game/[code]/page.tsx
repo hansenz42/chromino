@@ -1,12 +1,22 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import clsx from "clsx";
 import { useGameStore } from "@/lib/game-store";
 import { Board } from "@/components/Board";
 import { Hand } from "@/components/Hand";
 import { PlayerPanel } from "@/components/PlayerPanel";
 import { generateAllTiles } from "@/lib/tile-generator";
 import type { GameState, Move } from "@/lib/types";
+import {
+  BTN_DANGER,
+  BTN_DANGER_OUTLINE,
+  BTN_DEFAULT,
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  MODAL_BACKDROP,
+  MODAL_CARD,
+} from "@/lib/ui-classes";
 
 const NICK_KEY = "chromino_nickname";
 const PID_KEY = "chromino_player_id";
@@ -30,11 +40,9 @@ export default function RemoteGamePage() {
     setTiles(tiles);
   }, [tiles, setTiles]);
 
-  // Initial join, then subscribe to SSE.
   useEffect(() => {
     let playerId = localStorage.getItem(PID_KEY);
     if (!playerId) {
-      // First-ever visit: generate a persistent ID instead of silently redirecting.
       playerId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
@@ -62,7 +70,6 @@ export default function RemoteGamePage() {
         setState(s);
         setJoining(false);
 
-        // Subscribe to SSE
         const es = new EventSource(`/api/game/${code}/events`);
         esRef.current = es;
         es.addEventListener("state", (ev) => {
@@ -89,7 +96,6 @@ export default function RemoteGamePage() {
     };
   }, [code, router, setSelf, setState]);
 
-  // Show disbanded screen instead of silently redirecting
   useEffect(() => {
     if (state?.phase === "disbanded") {
       esRef.current?.close();
@@ -108,7 +114,6 @@ export default function RemoteGamePage() {
         body: JSON.stringify({ hostId: selfPlayerId }),
       });
     } else if (selfPlayerId) {
-      // Non-host: notify server so the seat can be AI-taken-over during gameplay
       await fetch(`/api/game/${code}/leave`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -139,37 +144,13 @@ export default function RemoteGamePage() {
     [code, selfPlayerId, setState, select],
   );
 
-  // Intercept local store's play() results: when user clicks a valid placement
-  // the store calls applyMove locally. For remote games we do not want that —
-  // override by monkey-patching? Instead, we handle clicks by replacing the
-  // board/hand's play flow via the store mechanism. Simpler: we add a tiny
-  // wrapper below that reads `selected` + candidate clicks via a global hook.
-  // Implementation: overwrite `play` in store per-mount is messy; instead we
-  // listen for state.version changes we made locally vs server. The engine call
-  // updates state, and we then POST. This yields instant UI but the server is
-  // authoritative. If the server rejects, we revert to server state via SSE.
-  // (No extra code here — local apply + POST is done in the helper below.)
-
-  // Wrap play via effect: subscribe to selected changes — no, we use a
-  // custom click path for remote. The Board + Hand components call the store's
-  // `play` which updates local state. We then detect that version bumped
-  // locally vs the last-seen server version, and forward the last move to the
-  // server. To keep it simple, we expose a buffered play action instead.
-
   if (disbanded)
     return (
       <Centered>
-        <div
-          style={{
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
-        >
-          <div style={{ fontSize: 16, fontWeight: 600 }}>房间已解散</div>
-          <div style={{ fontSize: 13, color: "#aaa" }}>该房间已不存在。</div>
-          <a href="/" style={{ color: "#4ade80", fontSize: 14 }}>
+        <div className="text-center flex flex-col gap-3">
+          <div className="text-base font-semibold">房间已解散</div>
+          <div className="text-[13px] text-muted">该房间已不存在。</div>
+          <a href="/" className="text-primary text-sm hover:underline">
             返回首页
           </a>
         </div>
@@ -179,17 +160,10 @@ export default function RemoteGamePage() {
   if (error)
     return (
       <Centered>
-        <div
-          style={{
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
-        >
-          <div style={{ fontSize: 15, fontWeight: 600 }}>加入失败</div>
-          <div style={{ fontSize: 13, color: "#aaa" }}>{error}</div>
-          <a href="/" style={{ color: "#4ade80", fontSize: 14 }}>
+        <div className="text-center flex flex-col gap-3">
+          <div className="text-[15px] font-semibold">加入失败</div>
+          <div className="text-[13px] text-muted">{error}</div>
+          <a href="/" className="text-primary text-sm hover:underline">
             返回首页
           </a>
         </div>
@@ -216,36 +190,18 @@ export default function RemoteGamePage() {
     state.phase === "playing";
 
   return (
-    <main
-      style={{ display: "flex", flexDirection: "column", height: "100dvh" }}
-    >
+    <main className="flex flex-col h-dvh">
       <PlayerPanel
         state={state}
         selfPlayerId={selfPlayerId}
         onLeave={handleLeave}
       />
       {!isConnected && (
-        <div
-          style={{
-            background: "#7c2d12",
-            color: "#fed7aa",
-            textAlign: "center",
-            padding: "6px 12px",
-            fontSize: 13,
-            flexShrink: 0,
-          }}
-        >
+        <div className="bg-banner text-banner-fg text-center px-3 py-1.5 text-[13px] shrink-0">
           连接已断开，正在重连…
         </div>
       )}
-      <div
-        style={{
-          flex: 1,
-          position: "relative",
-          minHeight: 0,
-          overflow: "hidden",
-        }}
-      >
+      <div className="flex-1 relative min-h-0 overflow-hidden">
         <Board
           state={state}
           tiles={tiles}
@@ -261,14 +217,7 @@ export default function RemoteGamePage() {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <main
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
+    <main className="min-h-dvh flex items-center justify-center">
       <div>{children}</div>
     </main>
   );
@@ -313,7 +262,6 @@ function Lobby({
   }
 
   async function start() {
-    // Settings are already stored in state; no need to re-send them.
     await fetch(`/api/game/${code}/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -330,88 +278,36 @@ function Lobby({
 
   return (
     <>
-      <main
-        style={{
-          minHeight: "100dvh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 16,
-        }}
-      >
-        <div
-          style={{
-            background: "#1b2028",
-            padding: "clamp(16px, 5vw, 24px)",
-            borderRadius: 12,
-            width: "min(100%, 480px)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            border: "1px solid #2a2f3a",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h2 style={{ margin: 0 }}>大厅</h2>
+      <main className="min-h-dvh flex items-center justify-center p-4">
+        <div className="bg-surface border border-border rounded-xl p-[clamp(16px,5vw,24px)] w-[min(100%,480px)] flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <h2 className="m-0">大厅</h2>
             <button
               onClick={copyCode}
               title="点击复制邀请码"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: "1px solid #3a4050",
-                background: copied ? "#1a2e1f" : "#222836",
-                color: copied ? "#4ade80" : "#e0e0e0",
-                fontSize: 15,
-                fontWeight: 700,
-                letterSpacing: 2,
-                cursor: "pointer",
-                transition: "background 0.15s, color 0.15s",
-                fontFamily: "monospace",
-              }}
+              className={clsx(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md",
+                "border border-border-3 text-[15px] font-bold tracking-[2px] cursor-pointer",
+                "font-mono transition-colors",
+                copied
+                  ? "bg-primary-bg text-primary"
+                  : "bg-surface-3 text-fg-2",
+              )}
             >
               {code}
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 400,
-                  letterSpacing: 0,
-                  fontFamily: "sans-serif",
-                  opacity: 0.7,
-                }}
-              >
+              <span className="text-xs font-normal tracking-normal font-sans opacity-70">
                 {copied ? "已复制 ✓" : "复制"}
               </span>
             </button>
           </div>
-          <p style={{ margin: 0, color: "#aaa", fontSize: 13 }}>
+          <p className="m-0 text-muted text-[13px]">
             将此代码分享给朋友。总人数 1–8（包含 AI）。
           </p>
-          <ul
-            style={{
-              listStyle: "none",
-              padding: 0,
-              margin: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
+          <ul className="list-none p-0 m-0 flex flex-col gap-1.5">
             {state.players.map((p) => (
               <li
                 key={p.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 12px",
-                  minHeight: 44,
-                  background: "#222836",
-                  borderRadius: 6,
-                }}
+                className="flex justify-between items-center px-3 py-2.5 min-h-[44px] bg-surface-3 rounded-md"
               >
                 <span>
                   {p.name}
@@ -419,52 +315,28 @@ function Lobby({
                   {p.id === selfPlayerId && " (我)"}
                 </span>
                 {isHost && !p.isHost && (
-                  <button onClick={() => kick(p.id)}>踢出</button>
+                  <button
+                    onClick={() => kick(p.id)}
+                    className="bg-transparent border border-border-3 text-muted rounded cursor-pointer px-2 py-0.5 text-[13px]"
+                  >
+                    踢出
+                  </button>
                 )}
               </li>
             ))}
           </ul>
-          {/* AI seat rows — visible to all players */}
           {aiSeats > 0 && (
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
+            <ul className="list-none p-0 m-0 flex flex-col gap-1.5">
               {Array.from({ length: aiSeats }, (_, i) => (
                 <li
                   key={i}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "10px 12px",
-                    minHeight: 44,
-                    background: "#1e2535",
-                    borderRadius: 6,
-                    border: "1px dashed #3a4050",
-                  }}
+                  className="flex justify-between items-center px-3 py-2.5 min-h-[44px] bg-ai-surface rounded-md border border-dashed border-border-3"
                 >
-                  <span style={{ color: "#aaa", fontSize: 13 }}>
-                    🤖 AI {i + 1}
-                  </span>
+                  <span className="text-muted text-[13px]">🤖 AI {i + 1}</span>
                   {isHost && (
                     <button
                       onClick={() => patchSettings({ aiSeats: aiSeats - 1 })}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid #4a3030",
-                        color: "#f87171",
-                        borderRadius: 4,
-                        cursor: "pointer",
-                        padding: "2px 8px",
-                        fontSize: 13,
-                      }}
+                      className="bg-transparent border border-border-danger text-danger-fg rounded cursor-pointer px-2 py-0.5 text-[13px]"
                     >
                       移除
                     </button>
@@ -478,43 +350,16 @@ function Lobby({
               {total < 8 && (
                 <button
                   onClick={() => patchSettings({ aiSeats: aiSeats + 1 })}
-                  style={{
-                    background: "transparent",
-                    border: "1px dashed #3a4050",
-                    color: "#888",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    padding: "10px 12px",
-                    fontSize: 13,
-                    textAlign: "left",
-                  }}
+                  className="bg-transparent border border-dashed border-border-3 text-subtle rounded-md cursor-pointer px-3 py-2.5 text-[13px] text-left"
                 >
                   + 添加 AI
                 </button>
               )}
-              {/* No-assistance card selector */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 8,
-                  borderTop: "1px solid #2a2f3a",
-                  paddingTop: 10,
-                  marginTop: 2,
-                }}
-              >
+              <div className="grid grid-cols-2 gap-2 border-t border-border pt-2.5 mt-0.5">
                 {(
                   [
-                    {
-                      value: true,
-                      label: "线下模式",
-                      sub: "无辅助 · 需拖拽放牌",
-                    },
-                    {
-                      value: false,
-                      label: "辅助模式",
-                      sub: "新手友好 · 高亮提示",
-                    },
+                    { value: true, label: "线下模式", sub: "无辅助 · 需拖拽放牌" },
+                    { value: false, label: "辅助模式", sub: "新手友好 · 高亮提示" },
                   ] as { value: boolean; label: string; sub: string }[]
                 ).map(({ value, label, sub }) => {
                   const active = noAssistance === value;
@@ -522,27 +367,16 @@ function Lobby({
                     <button
                       key={String(value)}
                       onClick={() => patchSettings({ noAssistance: value })}
-                      style={{
-                        padding: "10px 8px",
-                        borderRadius: 8,
-                        border: active
-                          ? "2px solid #4ade80"
-                          : "2px solid #2a2f3a",
-                        background: active ? "#1a2e1f" : "transparent",
-                        color: active ? "#4ade80" : "#888",
-                        cursor: "pointer",
-                        textAlign: "center",
-                        lineHeight: 1.4,
-                        transition:
-                          "border-color 0.15s, background 0.15s, color 0.15s",
-                      }}
+                      className={clsx(
+                        "rounded-lg px-2 py-2.5 cursor-pointer text-center leading-snug",
+                        "border-2 transition-colors",
+                        active
+                          ? "border-primary bg-primary-bg text-primary"
+                          : "border-border bg-transparent text-subtle",
+                      )}
                     >
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>
-                        {label}
-                      </div>
-                      <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>
-                        {sub}
-                      </div>
+                      <div className="font-semibold text-[13px]">{label}</div>
+                      <div className="text-[11px] mt-0.5 opacity-80">{sub}</div>
                     </button>
                   );
                 })}
@@ -553,22 +387,16 @@ function Lobby({
             <button
               onClick={start}
               disabled={total < 1 || total > 8}
-              style={{ background: "#4ade80", color: "#111" }}
+              className={BTN_PRIMARY}
             >
               开始游戏
             </button>
           ) : (
-            <p style={{ color: "#888", margin: 0 }}>等待房主开始…</p>
+            <p className="text-subtle m-0">等待房主开始…</p>
           )}
           <button
             onClick={() => setConfirming(true)}
-            style={{
-              background: "transparent",
-              border: "1px solid #4a3030",
-              color: "#f87171",
-              borderRadius: 6,
-              cursor: "pointer",
-            }}
+            className={BTN_DANGER_OUTLINE}
           >
             {isHost ? "解散房间" : "离开大厅"}
           </button>
@@ -577,41 +405,26 @@ function Lobby({
 
       {confirming && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-          }}
+          className={MODAL_BACKDROP}
           onClick={() => setConfirming(false)}
         >
           <div
-            style={{
-              background: "#1b2028",
-              border: "1px solid #2a2f3a",
-              borderRadius: 12,
-              padding: "24px 28px",
-              textAlign: "center",
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              minWidth: 240,
-            }}
+            className={MODAL_CARD}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 16, fontWeight: 600 }}>
+            <div className="text-base font-semibold">
               {isHost ? "解散房间？" : "离开大厅？"}
             </div>
-            <div style={{ fontSize: 13, color: "#aaa" }}>
+            <div className="text-[13px] text-muted">
               {isHost
                 ? "房间将关闭，所有玩家都会被踢出。"
                 : "你将离开大厅，其他玩家不受影响。"}
             </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-              <button onClick={() => setConfirming(false)} style={{ flex: 1 }}>
+            <div className="flex gap-2.5 justify-center">
+              <button
+                onClick={() => setConfirming(false)}
+                className={clsx(BTN_SECONDARY, "flex-1")}
+              >
                 取消
               </button>
               <button
@@ -619,12 +432,7 @@ function Lobby({
                   setConfirming(false);
                   onLeave();
                 }}
-                style={{
-                  flex: 1,
-                  background: "#dc2626",
-                  border: "none",
-                  color: "#fff",
-                }}
+                className={clsx(BTN_DANGER, "flex-1")}
               >
                 确认
               </button>
@@ -641,30 +449,15 @@ function EndOverlay({ state }: { state: GameState }) {
     (id) => state.players.find((p) => p.id === id)?.name ?? id,
   );
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.7)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
-    >
-      <div
-        style={{
-          background: "#1b2028",
-          padding: 24,
-          borderRadius: 12,
-          textAlign: "center",
-        }}
-      >
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-surface p-6 rounded-xl text-center">
         <h2>游戏结束</h2>
         <p>
-          胜者{names.length > 1 ? "" : ""}：{names.join("、") || "—"}
+          胜者：{names.join("、") || "—"}
         </p>
-        <a href="/">返回主菜单</a>
+        <a href="/" className="text-link hover:underline">
+          返回主菜单
+        </a>
       </div>
     </div>
   );

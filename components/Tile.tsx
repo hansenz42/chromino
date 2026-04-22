@@ -66,12 +66,12 @@ export function TileSvg({
       height={h}
       viewBox={`0 0 ${w} ${h}`}
       onClick={onClick}
-      style={{
-        cursor: onClick ? "pointer" : "default",
-        borderRadius: 4,
-        overflow: "visible",
-        ...style,
-      }}
+      className={
+        onClick
+          ? "cursor-pointer rounded overflow-visible"
+          : "cursor-default rounded overflow-visible"
+      }
+      style={style}
     >
       {selected && (
         <defs>

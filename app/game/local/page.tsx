@@ -7,6 +7,7 @@ import { Hand } from "@/components/Hand";
 import { PlayerPanel } from "@/components/PlayerPanel";
 import { generateAllTiles } from "@/lib/tile-generator";
 import type { Player } from "@/lib/types";
+import { BTN_DEFAULT, BTN_PRIMARY } from "@/lib/ui-classes";
 
 export default function LocalGamePage() {
   const tiles = useMemo(() => generateAllTiles(), []);
@@ -26,14 +27,12 @@ export default function LocalGamePage() {
     setTiles(tiles);
   }, [tiles, setTiles]);
 
-  // Redirect to home if there is no active game (direct navigation or browser back without setup)
   useEffect(() => {
     if (!state) {
       router.replace("/");
     }
   }, [state, router]);
 
-  // Drive AI turns
   useEffect(() => {
     if (!state || state.phase !== "playing") return;
     const cur = state.players[state.currentPlayerIndex];
@@ -53,22 +52,13 @@ export default function LocalGamePage() {
   }
 
   return (
-    <main
-      style={{ display: "flex", flexDirection: "column", height: "100dvh" }}
-    >
+    <main className="flex flex-col h-dvh">
       <PlayerPanel
         state={state}
         selfPlayerId={selfPlayerId}
         onLeave={handleLeave}
       />
-      <div
-        style={{
-          flex: 1,
-          position: "relative",
-          minHeight: 0,
-          overflow: "hidden",
-        }}
-      >
+      <div className="flex-1 relative min-h-0 overflow-hidden">
         <Board state={state} tiles={tiles} selectedTileId={selectedTileId} />
       </div>
       <Hand state={state} />
@@ -100,47 +90,12 @@ function PrivacyScreen({
   onAcknowledge: () => void;
 }) {
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "#111827",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 24,
-        zIndex: 100,
-      }}
-    >
-      <p style={{ color: "#9ca3af", margin: 0, fontSize: 14 }}>
-        请将设备传递给
-      </p>
-      <p
-        style={{
-          color: "#f9fafb",
-          margin: 0,
-          fontSize: 28,
-          fontWeight: 700,
-          letterSpacing: "0.01em",
-        }}
-      >
+    <div className="fixed inset-0 bg-privacy-bg flex flex-col items-center justify-center gap-6 z-[100]">
+      <p className="text-privacy-sub m-0 text-sm">请将设备传递给</p>
+      <p className="text-privacy-name m-0 text-[28px] font-bold tracking-[0.01em]">
         {playerName}
       </p>
-      <button
-        onClick={onAcknowledge}
-        style={{
-          marginTop: 8,
-          padding: "12px 32px",
-          background: "#4ade80",
-          color: "#111827",
-          border: "none",
-          borderRadius: 8,
-          fontSize: 16,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
-      >
+      <button onClick={onAcknowledge} className={`${BTN_PRIMARY} mt-2 px-8`}>
         开始我的回合
       </button>
     </div>
@@ -160,30 +115,13 @@ function EndOverlay({
     (id) => players.find((p) => p.id === id)?.name ?? id,
   );
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.7)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
-    >
-      <div
-        style={{
-          background: "#1b2028",
-          padding: 24,
-          borderRadius: 12,
-          textAlign: "center",
-        }}
-      >
-        <h2>游戏结束</h2>
-        <p>
-          胜者{names.length > 1 ? "" : ""}：{names.join("、") || "—"}
-        </p>
-        <button onClick={onPlayAgain}>再玩一局</button>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-surface p-6 rounded-xl text-center flex flex-col gap-3">
+        <h2 className="m-0">游戏结束</h2>
+        <p className="m-0">胜者：{names.join("、") || "—"}</p>
+        <button onClick={onPlayAgain} className={BTN_DEFAULT}>
+          再玩一局
+        </button>
       </div>
     </div>
   );

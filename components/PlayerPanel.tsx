@@ -1,7 +1,15 @@
 "use client";
 import { useState } from "react";
+import clsx from "clsx";
 import type { GameState } from "@/lib/types";
 import { TileSvg } from "@/components/Tile";
+import {
+  BTN_DANGER,
+  BTN_DANGER_OUTLINE,
+  BTN_SECONDARY,
+  MODAL_BACKDROP,
+  MODAL_CARD,
+} from "@/lib/ui-classes";
 
 export function PlayerPanel({
   state,
@@ -17,45 +25,16 @@ export function PlayerPanel({
   return (
     <>
       {/* ── Row 1: header bar ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 12px",
-          height: 36,
-          background: "#1b2028",
-          borderBottom: "1px solid #2a2f3a",
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 15,
-            letterSpacing: "0.03em",
-            color: "#4ade80",
-            fontFamily: "monospace",
-          }}
-        >
+      <div className="flex items-center justify-between px-3 h-9 bg-surface border-b border-border shrink-0">
+        <span className="font-bold text-[15px] tracking-[0.03em] text-primary font-mono">
           chromino
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: "#aaa" }}>
-            剩 {state.bag.length} 张
-          </span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs text-muted">剩 {state.bag.length} 张</span>
           {onLeave && (
             <button
               onClick={() => setConfirming(true)}
-              style={{
-                fontSize: 12,
-                padding: "2px 8px",
-                background: "transparent",
-                border: "1px solid #4a3030",
-                color: "#f87171",
-                borderRadius: 4,
-                cursor: "pointer",
-              }}
+              className={clsx(BTN_DANGER_OUTLINE, "!min-h-0 !px-2 !py-0.5 !text-xs")}
             >
               退出
             </button>
@@ -63,26 +42,14 @@ export function PlayerPanel({
         </div>
       </div>
 
-      {/* ── Row 2: player cards (horizontally scrollable) ── */}
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          padding: "6px 10px",
-          background: "#1b2028",
-          borderBottom: "1px solid #2a2f3a",
-          overflowX: "auto",
-          flexShrink: 0,
-          WebkitOverflowScrolling: "touch",
-        }}
-      >
+      {/* ── Row 2: player cards ── */}
+      <div className="flex gap-1.5 px-2.5 py-1.5 bg-surface border-b border-border overflow-x-auto shrink-0 [-webkit-overflow-scrolling:touch]">
         {state.players.map((p, i) => {
           const active =
             i === state.currentPlayerIndex && state.phase === "playing";
           const winner = state.winners.includes(p.id);
           const lastTile = p.hand.length === 1;
 
-          // Build status emoji string
           const statusEmoji = [
             p.aiTakeover ? "🤖" : p.isAI ? "🤖" : null,
             p.isHost ? "👑" : null,
@@ -94,92 +61,45 @@ export function PlayerPanel({
           return (
             <div
               key={p.id}
-              style={{
-                padding: "4px 7px",
-                borderRadius: 6,
-                background: active ? "#2a3141" : "#222836",
-                border: active ? "1px solid #4ade80" : "1px solid #2a2f3a",
-                color: winner ? "#fbbf24" : "#eee",
-                flexShrink: 0,
-                opacity: p.aiTakeover ? 0.75 : 1,
-                minWidth: 64,
-                display: "flex",
-                flexDirection: "column",
-                gap: 3,
-              }}
+              className={clsx(
+                "px-1.5 py-1 rounded-md border shrink-0 min-w-[64px] flex flex-col gap-[3px]",
+                active
+                  ? "bg-surface-hover border-primary"
+                  : "bg-surface-3 border-border",
+                winner ? "text-gold" : "text-fg",
+                p.aiTakeover && "opacity-75",
+              )}
             >
-              {/* Line 1: player name + self badge */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  minWidth: 0,
-                }}
-              >
-                <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 12,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    minWidth: 0,
-                  }}
-                >
+              {/* Line 1 */}
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="font-semibold text-xs whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
                   {p.name}
                 </span>
                 {p.id === selfPlayerId && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: "#6b7280",
-                      background: "rgba(107,114,128,0.15)",
-                      border: "1px solid rgba(107,114,128,0.3)",
-                      borderRadius: 3,
-                      padding: "0 3px",
-                      lineHeight: "14px",
-                      flexShrink: 0,
-                    }}
-                  >
+                  <span className="text-[10px] text-subtle-2 bg-[rgba(107,114,128,0.15)] border border-[rgba(107,114,128,0.3)] rounded-[3px] px-[3px] leading-[14px] shrink-0">
                     我
                   </span>
                 )}
               </div>
 
-              {/* Line 2: status + hand count + tile icon [+ last tile face] */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 3,
-                  flexWrap: "nowrap",
-                }}
-              >
+              {/* Line 2 */}
+              <div className="flex items-center gap-[3px] flex-nowrap">
                 {statusEmoji && (
-                  <span style={{ fontSize: 10, lineHeight: 1 }}>
+                  <span className="text-[10px] leading-none">
                     {statusEmoji}
                   </span>
                 )}
                 {!lastTile && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: "#aaa",
-                      fontWeight: 400,
-                    }}
-                  >
+                  <span className="text-[11px] text-muted font-normal">
                     {p.hand.length}
                     张牌
                   </span>
                 )}
                 {lastTile && (
-                  <>
-                    <TileSvg tile={p.hand[0]} size={14} orientation="h" />
-                  </>
+                  <TileSvg tile={p.hand[0]} size={14} orientation="h" />
                 )}
                 {p.connected === false && !p.aiTakeover && (
-                  <span style={{ fontSize: 9, color: "#6b7280" }}>断线</span>
+                  <span className="text-[9px] text-subtle-2">断线</span>
                 )}
               </div>
             </div>
@@ -188,38 +108,17 @@ export function PlayerPanel({
       </div>
 
       {confirming && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-          }}
-          onClick={() => setConfirming(false)}
-        >
-          <div
-            style={{
-              background: "#1b2028",
-              border: "1px solid #2a2f3a",
-              borderRadius: 12,
-              padding: "24px 28px",
-              textAlign: "center",
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              minWidth: 240,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: 16, fontWeight: 600 }}>退出房间？</div>
-            <div style={{ fontSize: 13, color: "#aaa" }}>
+        <div className={MODAL_BACKDROP} onClick={() => setConfirming(false)}>
+          <div className={MODAL_CARD} onClick={(e) => e.stopPropagation()}>
+            <div className="text-base font-semibold">退出房间？</div>
+            <div className="text-[13px] text-muted">
               游戏进度将会丢失，确认退出？
             </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-              <button onClick={() => setConfirming(false)} style={{ flex: 1 }}>
+            <div className="flex gap-2.5 justify-center">
+              <button
+                onClick={() => setConfirming(false)}
+                className={clsx(BTN_SECONDARY, "flex-1")}
+              >
                 取消
               </button>
               <button
@@ -227,12 +126,7 @@ export function PlayerPanel({
                   setConfirming(false);
                   onLeave?.();
                 }}
-                style={{
-                  flex: 1,
-                  background: "#dc2626",
-                  border: "none",
-                  color: "#fff",
-                }}
+                className={clsx(BTN_DANGER, "flex-1")}
               >
                 退出
               </button>

@@ -20,7 +20,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh">
-      <body>{children}</body>
+      <body className="m-0 min-h-dvh bg-bg text-fg font-sans antialiased overscroll-none">
+        {children}
+      </body>
     </html>
   );
 }

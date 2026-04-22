@@ -1,9 +1,11 @@
 "use client";
 import { useLayoutEffect, useRef } from "react";
+import clsx from "clsx";
 import type { GameState, Move, Orientation } from "@/lib/types";
 import { useGameStore } from "@/lib/game-store";
 import { TileSvg } from "./Tile";
 import { hasAnyLegalPlay } from "@/lib/game-engine";
+import { BTN_DEFAULT } from "@/lib/ui-classes";
 
 const CELL = 48;
 const HAND_CELL = 32;
@@ -13,10 +15,6 @@ export function Hand({
   onPlay,
 }: {
   state: GameState;
-  /**
-   * If provided, intercepts draw/pass actions (remote mode).
-   * When absent the store's `play()` is called directly (local mode).
-   */
   onPlay?: (m: Move) => void;
 }) {
   const {
@@ -33,7 +31,6 @@ export function Hand({
     boardZoom,
   } = useGameStore();
 
-  // Drag tracking refs (used only in no-assistance mode)
   const pendingRef = useRef<{
     tileId: number;
     pointerId: number;
@@ -50,14 +47,12 @@ export function Hand({
 
   const me = state.players.find((p) => p.id === selfPlayerId);
 
-  // Set initial floating tile position (runs when drag starts or cancelling changes)
   useLayoutEffect(() => {
     if (!dragging || !floatingRef.current) return;
     const el = floatingRef.current;
     const tileCell = CELL * boardZoom;
     const isH = dragging.orientation === "h";
     if (dragging.cancelling) {
-      // Ensure we start from current cursor position before animating back
       el.style.transition = "none";
       el.style.left = `${dragging.currentX - (isH ? tileCell * 1.5 : tileCell * 0.5)}px`;
       el.style.top = `${dragging.currentY - (isH ? tileCell * 0.5 : tileCell * 1.5)}px`;
@@ -68,7 +63,6 @@ export function Hand({
       });
       return () => cancelAnimationFrame(frame);
     } else {
-      // Place at current cursor position (initial mount of floating tile)
       el.style.transition = "none";
       el.style.left = `${dragging.currentX - (isH ? tileCell * 1.5 : tileCell * 0.5)}px`;
       el.style.top = `${dragging.currentY - (isH ? tileCell * 0.5 : tileCell * 1.5)}px`;
@@ -81,9 +75,6 @@ export function Hand({
   const isMyTurn =
     state.players[state.currentPlayerIndex]?.id === me.id &&
     state.phase === "playing";
-  // In no-assistance mode: can draw only once per turn.
-  // Use state.turnHasDrawn (set by the engine) so both local and remote modes
-  // are driven by the same authoritative game state.
   const canDraw = state.noAssistance
     ? isMyTurn && !state.turnHasDrawn
     : isMyTurn && !hasAnyLegalPlay(state, me.id);
@@ -91,11 +82,6 @@ export function Hand({
   function makeTilePointerDown(tileId: number) {
     if (!state.noAssistance || !isMyTurn) return undefined;
     return (e: React.PointerEvent<HTMLDivElement>) => {
-      // Release implicit pointer capture so that pointerup fires on the element
-      // under the finger/cursor (e.g. the board), not locked to this tile div.
-      // Must use e.target (the actual touched element) — on mobile, the browser
-      // sets implicit capture on e.target, not e.currentTarget, so calling it on
-      // e.currentTarget has no effect and the drop never reaches the board.
       (e.target as Element).releasePointerCapture(e.pointerId);
       const el = e.currentTarget;
       const rect = el.getBoundingClientRect();
@@ -145,7 +131,6 @@ export function Hand({
         }
         if (pendingRef.current.active) {
           useGameStore.getState().updateDrag(ev.clientX, ev.clientY);
-          // Update floating tile position directly (no React re-render needed)
           if (floatingRef.current) {
             const isH = pendingRef.current.orientation === "h";
             const tileCell = CELL * useGameStore.getState().boardZoom;
@@ -166,11 +151,8 @@ export function Hand({
         const wasActive = pendingRef.current.active;
         pendingRef.current = null;
         if (wasActive) {
-          // Board's onPointerUp fires before window.pointerup (React delegation).
-          // If Board already handled the drop, dragging will be null or cancelling.
           const d = useGameStore.getState().dragging;
           if (d && !d.cancelling) {
-            // Released outside the board — cancel drag
             useGameStore.getState().cancelDrag();
           }
         }
@@ -187,39 +169,35 @@ export function Hand({
 
   return (
     <div
-      className="safe-bottom"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        padding: "10px 12px",
-        background: isMyTurn ? "#1e2a1e" : "#1b2028",
-        borderTop: isMyTurn ? "1px solid #4ade80" : "1px solid #2a2f3a",
-        flexShrink: 0,
-      }}
+      className={clsx(
+        "safe-bottom flex flex-col gap-2 px-3 py-2.5 border-t shrink-0",
+        isMyTurn
+          ? "bg-hand-active border-primary"
+          : "bg-surface border-border",
+      )}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <strong style={{ color: isMyTurn ? "#4ade80" : "#aaa" }}>
-          {isMyTurn
-            ? "请出牌"
-            : // : `等待中 — ${state.players[state.currentPlayerIndex]?.name}`}
-              `等待中`}
+      <div className="flex justify-between items-center">
+        <strong className={isMyTurn ? "text-primary" : "text-muted"}>
+          {isMyTurn ? "请出牌" : "等待中"}
         </strong>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button disabled={!selected} onClick={rotateLeft}>
+        <div className="flex gap-2">
+          <button
+            disabled={!selected}
+            onClick={rotateLeft}
+            className={BTN_DEFAULT}
+          >
             ↺
           </button>
-          <button disabled={!selected} onClick={rotateRight}>
+          <button
+            disabled={!selected}
+            onClick={rotateRight}
+            className={BTN_DEFAULT}
+          >
             ↻
           </button>
           {isMyTurn && state.noAssistance && state.turnHasDrawn ? (
             <button
+              className={BTN_DEFAULT}
               onClick={() => {
                 const m: Move = { type: "pass" };
                 if (onPlay) {
@@ -234,6 +212,7 @@ export function Hand({
             </button>
           ) : (
             <button
+              className={BTN_DEFAULT}
               disabled={!canDraw}
               onClick={() => {
                 const m: Move = { type: "draw" };
@@ -253,15 +232,8 @@ export function Hand({
         </div>
       </div>
       <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "nowrap",
-          overflowX: "auto",
-          overflowY: "hidden",
-          height: HAND_CELL * 3,
-          alignItems: "center",
-        }}
+        className="flex gap-2 flex-nowrap overflow-x-auto overflow-y-hidden items-center"
+        style={{ height: HAND_CELL * 3 }}
       >
         {me.hand.map((t) => {
           const isSel = selected?.tileId === t.id;
@@ -269,22 +241,23 @@ export function Hand({
           return (
             <div
               key={t.id}
+              className={clsx(
+                "flex items-center justify-center shrink-0",
+                isDraggingThis ? "opacity-30" : "opacity-100",
+              )}
               style={{
-                opacity: isDraggingThis ? 0.3 : 1,
                 width: HAND_CELL * 3,
                 height: HAND_CELL * 3,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
               }}
             >
               <div
                 onPointerDown={makeTilePointerDown(t.id)}
-                style={{
-                  touchAction: state.noAssistance && isMyTurn ? "none" : "auto",
-                  display: "flex",
-                }}
+                className={clsx(
+                  "flex",
+                  state.noAssistance && isMyTurn
+                    ? "touch-none"
+                    : "touch-auto",
+                )}
               >
                 <TileSvg
                   tile={t}
@@ -302,7 +275,6 @@ export function Hand({
                   selected={isSel}
                   onClick={() => {
                     if (!isMyTurn) return;
-                    // Suppress click if it was the end of a drag gesture
                     if (dragBlockRef.current) {
                       dragBlockRef.current = false;
                       return;
@@ -310,8 +282,6 @@ export function Hand({
                     if (isSel) select(null);
                     else
                       select({ tileId: t.id, flip: false, orientation: "h" });
-                    // Note: select() in the store ignores the passed flip/orientation
-                    // and restores this tile's saved state from tileOrientations
                   }}
                 />
               </div>
@@ -319,16 +289,10 @@ export function Hand({
           );
         })}
       </div>
-      {/* Floating tile that follows the cursor during drag (no-assistance mode) */}
       {dragging && dragTile && (
         <div
           ref={floatingRef}
-          style={{
-            position: "fixed",
-            pointerEvents: "none",
-            zIndex: 9999,
-            opacity: 0.85,
-          }}
+          className="fixed pointer-events-none z-[9999] opacity-85"
           onTransitionEnd={(e) => {
             if (e.propertyName === "left") clearDrag();
           }}

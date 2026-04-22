@@ -12,6 +12,12 @@ import { useGameStore } from "@/lib/game-store";
 
 const CELL = 48;
 
+const ZOOM_BTN_CLS =
+  "inline-flex items-center justify-center rounded-md border border-border-2 " +
+  "bg-surface-hover text-fg px-3 min-h-[36px] leading-none cursor-pointer " +
+  "touch-manipulation select-none transition-colors " +
+  "[&:not(:disabled)]:hover:bg-surface-hover-2";
+
 export interface BoardProps {
   state: GameState;
   tiles: Tile[];
@@ -348,14 +354,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
   return (
     <div
       ref={containerRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        overflow: "hidden",
-        background: "#141820",
-        touchAction: "none",
-        position: "relative",
-      }}
+      className="w-full h-full overflow-hidden bg-surface-2 touch-none relative"
       onPointerDown={onBoardPointerDown}
       onPointerMove={(e) => {
         onBoardPointerMove(e);
@@ -375,12 +374,11 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
       onWheel={onWheel}
     >
       <div
+        className="mx-auto origin-center"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: "50% 50%",
           width,
           height,
-          margin: "0 auto",
         }}
       >
         <svg
@@ -515,7 +513,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
                       stroke="#ffffff88"
                       strokeDasharray="4 3"
                       onClick={() => onCellClick(c.x, c.y)}
-                      style={{ cursor: "pointer" }}
+                      className="cursor-pointer"
                     />
                   ))}
                 </g>
@@ -555,45 +553,21 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
       </div>
 
       {/* Zoom controls — compact for mobile */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 12,
-          right: 12,
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-        }}
-      >
+      <div className="absolute bottom-3 right-3 flex flex-col gap-1.5">
         <button
-          style={{
-            padding: "6px 12px",
-            minHeight: 36,
-            fontSize: 18,
-            lineHeight: 1,
-          }}
+          className={ZOOM_BTN_CLS + " text-lg"}
           onClick={() => setZoom((z) => Math.min(2.5, z * 1.2))}
         >
           +
         </button>
         <button
-          style={{
-            padding: "6px 12px",
-            minHeight: 36,
-            fontSize: 18,
-            lineHeight: 1,
-          }}
+          className={ZOOM_BTN_CLS + " text-lg"}
           onClick={() => setZoom((z) => Math.max(0.3, z / 1.2))}
         >
           −
         </button>
         <button
-          style={{
-            padding: "6px 10px",
-            minHeight: 36,
-            fontSize: 13,
-            lineHeight: 1,
-          }}
+          className={ZOOM_BTN_CLS + " text-[13px] !px-2.5"}
           title="Reset view"
           onClick={() => {
             const z = fitZoomRef.current;
