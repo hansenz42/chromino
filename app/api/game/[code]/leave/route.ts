@@ -41,6 +41,7 @@ export async function POST(
   if (state.phase === "lobby") {
     // Simply remove from lobby
     state.players.splice(idx, 1);
+    state.leftPlayerIds = [...(state.leftPlayerIds ?? []), playerId];
     state.log.push(`${player.name} 退出了房间`);
     state.version++;
     await saveGame(state);
@@ -56,6 +57,7 @@ export async function POST(
   player.isAI = true;
   player.aiTakeover = true;
   player.connected = false;
+  state.leftPlayerIds = [...(state.leftPlayerIds ?? []), playerId];
   state.log.push(`${player.name} 退出，AI 接管`);
   state.version++;
 

@@ -31,6 +31,11 @@ export async function POST(
   if (!state) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const prevVersion = state.version;
+
+  if ((state.leftPlayerIds ?? []).includes(playerId)) {
+    return NextResponse.json({ error: "已退出该游戏" }, { status: 403 });
+  }
+
   const existing = state.players.find((p) => p.id === playerId);
   if (existing) {
     // Reconnect: do not mutate disbanded/ended games.

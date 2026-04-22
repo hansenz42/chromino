@@ -64,6 +64,7 @@ export default function RemoteGamePage() {
         });
         if (!res.ok) {
           const j = (await res.json().catch(() => ({}))) as { error?: string };
+          localStorage.removeItem(LAST_GAME_KEY);
           setError(j.error ?? `HTTP ${res.status}`);
           setJoining(false);
           return;

@@ -39,7 +39,11 @@ export default function RemoteGamePage() {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(true);
   const [disbanded, setDisbanded] = useState(false);
-  const esRef = useRef<EventSource | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollVersionRef = useRef<number>(-1);
+  const failCountRef = useRef<number>(0);
+  const pollActiveRef = useRef<boolean>(false);
+  const nudgePollRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     setTiles(tiles);
@@ -59,6 +63,8 @@ export default function RemoteGamePage() {
     setSelf(playerId);
     localStorage.setItem(LAST_GAME_KEY, code);
 
+    let stopped = false;
+
     (async () => {
       try {
         const res = await fetch(`/api/game/${code}`, {
@@ -68,28 +74,65 @@ export default function RemoteGamePage() {
         });
         if (!res.ok) {
           const j = (await res.json().catch(() => ({}))) as { error?: string };
+          localStorage.removeItem(LAST_GAME_KEY);
           setError(j.error ?? `HTTP ${res.status}`);
           setJoining(false);
           return;
         }
         const s = (await res.json()) as GameState;
         setState(s);
+        pollVersionRef.current = s.version;
         setJoining(false);
 
-        const es = new EventSource(`/api/game/${code}/events`);
-        esRef.current = es;
-        es.addEventListener("state", (ev) => {
+        pollActiveRef.current = true;
+
+        async function poll() {
+          if (stopped) return;
           try {
-            const next = JSON.parse((ev as MessageEvent).data) as GameState;
-            setState(next);
+            const r = await fetch(
+              `/api/game/${code}/events?version=${pollVersionRef.current}`,
+            );
+            if (r.status === 404) {
+              // Game no longer exists
+              stopped = true;
+              pollActiveRef.current = false;
+              localStorage.removeItem(LAST_GAME_KEY);
+              setDisbanded(true);
+              return;
+            }
+            if (r.status === 200) {
+              const data = (await r.json()) as { state: GameState };
+              pollVersionRef.current = data.state.version;
+              setState(data.state);
+              if (
+                data.state.phase === "disbanded" ||
+                data.state.phase === "ended"
+              ) {
+                stopped = true;
+                pollActiveRef.current = false;
+                return;
+              }
+            }
+            // 204 = no change, do nothing
+            failCountRef.current = 0;
             setIsConnected(true);
           } catch {
-            /* ignore */
+            failCountRef.current += 1;
+            if (failCountRef.current >= 3) setIsConnected(false);
           }
-        });
-        es.addEventListener("error", () => {
-          setIsConnected(false);
-        });
+          // Schedule next poll only after this one finishes
+          if (!stopped) {
+            pollRef.current = setTimeout(poll, 2500);
+          }
+        }
+
+        nudgePollRef.current = () => {
+          if (stopped) return;
+          if (pollRef.current) clearTimeout(pollRef.current);
+          pollRef.current = setTimeout(poll, 400);
+        };
+
+        poll();
       } catch (e) {
         setError(e instanceof Error ? e.message : "join failed");
         setJoining(false);
@@ -97,15 +140,19 @@ export default function RemoteGamePage() {
     })();
 
     return () => {
-      esRef.current?.close();
-      esRef.current = null;
+      stopped = true;
+      pollActiveRef.current = false;
+      nudgePollRef.current = null;
+      if (pollRef.current) clearTimeout(pollRef.current);
+      pollRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   useEffect(() => {
     if (state?.phase === "disbanded") {
-      esRef.current?.close();
+      pollActiveRef.current = false;
+      if (pollRef.current) clearTimeout(pollRef.current);
       localStorage.removeItem(LAST_GAME_KEY);
       setDisbanded(true);
     }
@@ -113,7 +160,8 @@ export default function RemoteGamePage() {
 
   async function handleLeave() {
     const amHost = state?.players.find((p) => p.isHost)?.id === selfPlayerId;
-    esRef.current?.close();
+    pollActiveRef.current = false;
+    if (pollRef.current) clearTimeout(pollRef.current);
     if (amHost) {
       await fetch(`/api/game/${code}/disband`, {
         method: "POST",
@@ -151,7 +199,10 @@ export default function RemoteGamePage() {
       }
       const s = (await res.json()) as GameState;
       setState(s);
+      pollVersionRef.current = s.version;
       select(null);
+      // Nudge the poll to fire soon so AI moves appear quickly
+      nudgePollRef.current?.();
     },
     [code, selfPlayerId, setState, select],
   );

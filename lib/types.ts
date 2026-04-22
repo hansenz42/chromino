@@ -94,6 +94,11 @@ export interface GameState {
    * a permanent stalemate and is terminated.
    */
   consecutivePasses?: number;
+  /**
+   * Player IDs that have intentionally left the game. These players are
+   * permanently blocked from rejoining (lobby or mid-game).
+   */
+  leftPlayerIds?: string[];
 }
 
 /** Ephemeral drag state for the no-assistance drag-and-drop mode. Lives in the UI store only. */
