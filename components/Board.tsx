@@ -415,7 +415,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
     const { dragging } = store;
     if (!dragging || dragging.cancelling || !state.noAssistance) return;
     if (!svgRef.current) {
-      store.cancelDrag();
+      store.cancelDrag(e.clientX, e.clientY);
       return;
     }
     const svgRect = svgRef.current.getBoundingClientRect();
@@ -428,7 +428,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
       return; // outside board — Hand's window.pointerup will cancel
     const tile = tiles[dragging.tileId];
     if (!tile) {
-      store.cancelDrag();
+      store.cancelDrag(e.clientX, e.clientY);
       return;
     }
     const pixX = e.clientX - svgRect.left;
@@ -486,7 +486,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
         }
       }
     }
-    store.cancelDrag();
+    store.cancelDrag(e.clientX, e.clientY);
   }
 
   // ── Drag hover indicator (no-assistance mode) ──────────────────────────

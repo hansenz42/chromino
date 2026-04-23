@@ -45,6 +45,7 @@ export function Hand({
     active: boolean;
   } | null>(null);
   const dragBlockRef = useRef(false);
+  const lastDragPosRef = useRef({ x: 0, y: 0 });
   const floatingRef = useRef<HTMLDivElement>(null);
   const handScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -188,7 +189,7 @@ export function Hand({
             );
         }
         if (pendingRef.current.active) {
-          useGameStore.getState().updateDrag(ev.clientX, ev.clientY);
+          lastDragPosRef.current = { x: ev.clientX, y: ev.clientY };
           if (floatingRef.current) {
             const isH = pendingRef.current.orientation === "h";
             const tileCell = CELL * useGameStore.getState().boardZoom;
@@ -211,7 +212,9 @@ export function Hand({
         if (wasActive) {
           const d = useGameStore.getState().dragging;
           if (d && !d.cancelling) {
-            useGameStore.getState().cancelDrag();
+            useGameStore
+              .getState()
+              .cancelDrag(lastDragPosRef.current.x, lastDragPosRef.current.y);
           }
         }
       };

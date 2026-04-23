@@ -23,6 +23,8 @@ import { useUIStore } from "@/lib/ui-store";
 const NICK_KEY = "chromino_nickname";
 const PID_KEY = "chromino_player_id";
 const LAST_GAME_KEY = "chromino_last_game";
+const DISCONNECT_UI_DELAY_MS = 5000;
+const RECONNECT_DELAY_MS = 120;
 
 export default function RemoteGamePage() {
   const params = useParams<{ code: string }>();
@@ -39,11 +41,13 @@ export default function RemoteGamePage() {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(true);
   const [disbanded, setDisbanded] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollVersionRef = useRef<number>(-1);
-  const failCountRef = useRef<number>(0);
-  const pollActiveRef = useRef<boolean>(false);
-  const nudgePollRef = useRef<(() => void) | null>(null);
+  const esRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const disconnectUiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const closedRef = useRef<boolean>(false);
+  const notFoundRef = useRef<boolean>(false);
 
   useEffect(() => {
     setTiles(tiles);
@@ -63,7 +67,135 @@ export default function RemoteGamePage() {
     setSelf(playerId);
     localStorage.setItem(LAST_GAME_KEY, code);
 
-    let stopped = false;
+    closedRef.current = false;
+    notFoundRef.current = false;
+
+    function clearReconnectTimer() {
+      if (!reconnectTimerRef.current) return;
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
+    function clearDisconnectUiTimer() {
+      if (!disconnectUiTimerRef.current) return;
+      clearTimeout(disconnectUiTimerRef.current);
+      disconnectUiTimerRef.current = null;
+    }
+
+    function closeEventSource() {
+      if (!esRef.current) return;
+      esRef.current.close();
+      esRef.current = null;
+    }
+
+    function closeConnection() {
+      clearReconnectTimer();
+      clearDisconnectUiTimer();
+      closeEventSource();
+    }
+
+    function markConnected() {
+      clearDisconnectUiTimer();
+      setIsConnected(true);
+    }
+
+    function scheduleDisconnectUi() {
+      if (
+        disconnectUiTimerRef.current ||
+        closedRef.current ||
+        notFoundRef.current
+      )
+        return;
+      disconnectUiTimerRef.current = setTimeout(() => {
+        disconnectUiTimerRef.current = null;
+        if (!closedRef.current && !notFoundRef.current) setIsConnected(false);
+      }, DISCONNECT_UI_DELAY_MS);
+    }
+
+    function handleGameNotFound() {
+      notFoundRef.current = true;
+      closedRef.current = true;
+      closeConnection();
+      localStorage.removeItem(LAST_GAME_KEY);
+      setDisbanded(true);
+    }
+
+    function scheduleReconnect(
+      connect: () => void,
+      delay = RECONNECT_DELAY_MS,
+    ) {
+      if (closedRef.current || notFoundRef.current) return;
+      clearReconnectTimer();
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        if (!closedRef.current && !notFoundRef.current) connect();
+      }, delay);
+    }
+
+    function connectEventStream() {
+      if (closedRef.current || notFoundRef.current) return;
+      closeEventSource();
+
+      const es = new EventSource(`/api/game/${code}/events`);
+      esRef.current = es;
+
+      es.addEventListener("open", () => {
+        markConnected();
+      });
+
+      es.addEventListener("ping", () => {
+        markConnected();
+      });
+
+      es.addEventListener("state", (ev) => {
+        try {
+          const next = JSON.parse((ev as MessageEvent).data) as GameState;
+          // Version gate: ignore pushes that are older than what we already
+          // have locally (e.g. the 500ms SSE poll window catching up after an
+          // optimistic update).
+          const current = useGameStore.getState().state;
+          if (current && next.version < current.version) {
+            markConnected();
+            return;
+          }
+          setState(next);
+          markConnected();
+          if (next.phase === "disbanded") {
+            handleGameNotFound();
+          }
+          if (next.phase === "ended") {
+            closeConnection();
+          }
+        } catch {
+          /* ignore malformed SSE payload */
+        }
+      });
+
+      es.addEventListener("rotate", () => {
+        scheduleReconnect(connectEventStream, 50);
+      });
+
+      es.addEventListener("app-error", (ev) => {
+        try {
+          const data = JSON.parse((ev as MessageEvent).data) as {
+            error?: string;
+          };
+          if (data.error === "not found") {
+            handleGameNotFound();
+          }
+        } catch {
+          /* ignore malformed app error payload */
+        }
+      });
+
+      es.addEventListener("error", () => {
+        if (closedRef.current || notFoundRef.current) return;
+        scheduleDisconnectUi();
+        if (es.readyState === EventSource.CLOSED) {
+          scheduleReconnect(connectEventStream);
+        }
+      });
+    }
 
     (async () => {
       try {
@@ -81,58 +213,8 @@ export default function RemoteGamePage() {
         }
         const s = (await res.json()) as GameState;
         setState(s);
-        pollVersionRef.current = s.version;
         setJoining(false);
-
-        pollActiveRef.current = true;
-
-        async function poll() {
-          if (stopped) return;
-          try {
-            const r = await fetch(
-              `/api/game/${code}/events?version=${pollVersionRef.current}`,
-            );
-            if (r.status === 404) {
-              // Game no longer exists
-              stopped = true;
-              pollActiveRef.current = false;
-              localStorage.removeItem(LAST_GAME_KEY);
-              setDisbanded(true);
-              return;
-            }
-            if (r.status === 200) {
-              const data = (await r.json()) as { state: GameState };
-              pollVersionRef.current = data.state.version;
-              setState(data.state);
-              if (
-                data.state.phase === "disbanded" ||
-                data.state.phase === "ended"
-              ) {
-                stopped = true;
-                pollActiveRef.current = false;
-                return;
-              }
-            }
-            // 204 = no change, do nothing
-            failCountRef.current = 0;
-            setIsConnected(true);
-          } catch {
-            failCountRef.current += 1;
-            if (failCountRef.current >= 3) setIsConnected(false);
-          }
-          // Schedule next poll only after this one finishes
-          if (!stopped) {
-            pollRef.current = setTimeout(poll, 2500);
-          }
-        }
-
-        nudgePollRef.current = () => {
-          if (stopped) return;
-          if (pollRef.current) clearTimeout(pollRef.current);
-          pollRef.current = setTimeout(poll, 400);
-        };
-
-        poll();
+        connectEventStream();
       } catch (e) {
         setError(e instanceof Error ? e.message : "join failed");
         setJoining(false);
@@ -140,19 +222,22 @@ export default function RemoteGamePage() {
     })();
 
     return () => {
-      stopped = true;
-      pollActiveRef.current = false;
-      nudgePollRef.current = null;
-      if (pollRef.current) clearTimeout(pollRef.current);
-      pollRef.current = null;
+      closedRef.current = true;
+      closeConnection();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   useEffect(() => {
     if (state?.phase === "disbanded") {
-      pollActiveRef.current = false;
-      if (pollRef.current) clearTimeout(pollRef.current);
+      closedRef.current = true;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (disconnectUiTimerRef.current)
+        clearTimeout(disconnectUiTimerRef.current);
+      esRef.current?.close();
+      reconnectTimerRef.current = null;
+      disconnectUiTimerRef.current = null;
+      esRef.current = null;
       localStorage.removeItem(LAST_GAME_KEY);
       setDisbanded(true);
     }
@@ -160,8 +245,14 @@ export default function RemoteGamePage() {
 
   async function handleLeave() {
     const amHost = state?.players.find((p) => p.isHost)?.id === selfPlayerId;
-    pollActiveRef.current = false;
-    if (pollRef.current) clearTimeout(pollRef.current);
+    closedRef.current = true;
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    if (disconnectUiTimerRef.current)
+      clearTimeout(disconnectUiTimerRef.current);
+    esRef.current?.close();
+    reconnectTimerRef.current = null;
+    disconnectUiTimerRef.current = null;
+    esRef.current = null;
     if (amHost) {
       await fetch(`/api/game/${code}/disband`, {
         method: "POST",
@@ -187,22 +278,42 @@ export default function RemoteGamePage() {
   const postAction = useCallback(
     async (move: Move) => {
       if (!selfPlayerId) return;
+      // Optimistic local update: apply the player's own move immediately so the
+      // board reflects the action without waiting for the HTTP round-trip.
+      const prevState = useGameStore.getState().state;
+      useGameStore.getState().play(move);
       const res = await fetch(`/api/game/${code}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerId: selfPlayerId, move }),
       });
       if (!res.ok) {
+        // Revert optimistic update on server rejection.
+        if (prevState) setState(prevState);
+        if (res.status === 409) {
+          // Concurrent update: SSE will push the latest state within ≤500ms.
+          // Retry the move once after a short wait instead of alerting.
+          await new Promise((r) => setTimeout(r, 650));
+          const retry = await fetch(`/api/game/${code}/action`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playerId: selfPlayerId, move }),
+          });
+          if (retry.ok) {
+            const s = (await retry.json()) as GameState;
+            setState(s);
+            select(null);
+          }
+          // If retry also fails, silently give up — SSE state is authoritative.
+          return;
+        }
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         alert(j.error ?? `HTTP ${res.status}`);
         return;
       }
       const s = (await res.json()) as GameState;
       setState(s);
-      pollVersionRef.current = s.version;
       select(null);
-      // Nudge the poll to fire soon so AI moves appear quickly
-      nudgePollRef.current?.();
     },
     [code, selfPlayerId, setState, select],
   );

@@ -86,7 +86,7 @@ interface GameStore {
     originY: number,
   ): void;
   updateDrag(x: number, y: number): void;
-  cancelDrag(): void;
+  cancelDrag(currentX?: number, currentY?: number): void;
   clearDrag(): void;
   resetGame(): void;
 }
@@ -300,10 +300,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!dragging || dragging.cancelling) return;
     set({ dragging: { ...dragging, currentX: x, currentY: y } });
   },
-  cancelDrag() {
+  cancelDrag(currentX?: number, currentY?: number) {
     const { dragging } = get();
     if (!dragging) return;
-    set({ dragging: { ...dragging, cancelling: true } });
+    set({
+      dragging: {
+        ...dragging,
+        cancelling: true,
+        ...(currentX !== undefined
+          ? { currentX, currentY: currentY ?? dragging.currentY }
+          : {}),
+      },
+    });
   },
   clearDrag() {
     set({ dragging: null });

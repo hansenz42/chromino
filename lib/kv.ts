@@ -13,7 +13,14 @@ function getRedis(): Redis {
   if (!global.__redis) {
     const url = process.env.REDIS_URL;
     if (!url) throw new Error("REDIS_URL environment variable is not set");
-    global.__redis = new Redis(url, { lazyConnect: false });
+    global.__redis = new Redis(url, {
+      lazyConnect: false,
+      // Fail fast: if Redis is unreachable the API returns 500 within ~5s
+      // instead of hanging forever (which caused create/join to never resolve).
+      connectTimeout: 5000,
+      commandTimeout: 5000,
+      maxRetriesPerRequest: 1,
+    });
   }
   return global.__redis;
 }
