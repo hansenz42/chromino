@@ -13,6 +13,9 @@ import { useGameStore } from "@/lib/game-store";
 const CELL = 48;
 const AUTO_FOLLOW_MARGIN = 12;
 const VIEWPORT_ANIM_MS = 500;
+const INITIAL_HALF_EXTENT = 24;
+const STABLE_BOUNDARY_PADDING = 6;
+const FIT_PADDING_CELLS = 6;
 
 const ZOOM_BTN_CLS =
   "inline-flex items-center justify-center rounded-md border border-border-2 " +
@@ -62,9 +65,9 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
   const handledLatestKeyRef = useRef<string | null>(null);
   const viewportAnimTimerRef = useRef<number | null>(null);
 
-  const { minX, minY, maxX, maxY } = useMemo(() => {
+  const occupiedBounds = useMemo(() => {
     const keys = Object.keys(state.board);
-    if (keys.length === 0) return { minX: -3, minY: -3, maxX: 3, maxY: 3 };
+    if (keys.length === 0) return { minX: -1, minY: -1, maxX: 1, maxY: 1 };
     let a = Infinity,
       b = Infinity,
       c = -Infinity,
@@ -78,13 +81,77 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
       if (y < b) b = y;
       if (y > d) d = y;
     }
-    return { minX: a - 4, minY: b - 4, maxX: c + 4, maxY: d + 4 };
+    return { minX: a, minY: b, maxX: c, maxY: d };
   }, [state.board]);
+
+  const [stableBounds, setStableBounds] = useState(() => ({
+    minX: Math.min(
+      -INITIAL_HALF_EXTENT,
+      occupiedBounds.minX - STABLE_BOUNDARY_PADDING,
+    ),
+    minY: Math.min(
+      -INITIAL_HALF_EXTENT,
+      occupiedBounds.minY - STABLE_BOUNDARY_PADDING,
+    ),
+    maxX: Math.max(
+      INITIAL_HALF_EXTENT,
+      occupiedBounds.maxX + STABLE_BOUNDARY_PADDING,
+    ),
+    maxY: Math.max(
+      INITIAL_HALF_EXTENT,
+      occupiedBounds.maxY + STABLE_BOUNDARY_PADDING,
+    ),
+  }));
+
+  useEffect(() => {
+    setStableBounds((prev) => {
+      const next = {
+        minX: Math.min(
+          prev.minX,
+          occupiedBounds.minX - STABLE_BOUNDARY_PADDING,
+        ),
+        minY: Math.min(
+          prev.minY,
+          occupiedBounds.minY - STABLE_BOUNDARY_PADDING,
+        ),
+        maxX: Math.max(
+          prev.maxX,
+          occupiedBounds.maxX + STABLE_BOUNDARY_PADDING,
+        ),
+        maxY: Math.max(
+          prev.maxY,
+          occupiedBounds.maxY + STABLE_BOUNDARY_PADDING,
+        ),
+      };
+      if (
+        next.minX === prev.minX &&
+        next.minY === prev.minY &&
+        next.maxX === prev.maxX &&
+        next.maxY === prev.maxY
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [
+    occupiedBounds.minX,
+    occupiedBounds.minY,
+    occupiedBounds.maxX,
+    occupiedBounds.maxY,
+  ]);
+
+  const { minX, minY, maxX, maxY } = stableBounds;
 
   const widthCells = maxX - minX + 1;
   const heightCells = maxY - minY + 1;
   const width = widthCells * CELL;
   const height = heightCells * CELL;
+  const occupiedWidth =
+    (occupiedBounds.maxX - occupiedBounds.minX + 1 + FIT_PADDING_CELLS * 2) *
+    CELL;
+  const occupiedHeight =
+    (occupiedBounds.maxY - occupiedBounds.minY + 1 + FIT_PADDING_CELLS * 2) *
+    CELL;
 
   function stopViewportAnimation() {
     if (viewportAnimTimerRef.current !== null) {
@@ -127,9 +194,35 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
     });
   }
 
+  function zoomAroundViewportCenter(targetZoom: number, animated = false) {
+    const nextZoom = Math.max(0.3, Math.min(2.5, targetZoom));
+    if (nextZoom === zoom) return;
+    const el = containerRef.current;
+    if (!el) {
+      if (animated) startViewportAnimation();
+      setZoom(nextZoom);
+      return;
+    }
+    const cw = el.clientWidth;
+    const ch = el.clientHeight;
+    const wrapperLeft = Math.max(0, (cw - width) / 2);
+    const wrapperTop = Math.max(0, (ch - height) / 2);
+
+    // Keep the current viewport center mapped to the same board world point.
+    const worldDx = (cw / 2 - wrapperLeft - width / 2 - pan.x) / zoom;
+    const worldDy = (ch / 2 - wrapperTop - height / 2 - pan.y) / zoom;
+    const nextPan = {
+      x: cw / 2 - wrapperLeft - width / 2 - worldDx * nextZoom,
+      y: ch / 2 - wrapperTop - height / 2 - worldDy * nextZoom,
+    };
+
+    if (animated) startViewportAnimation();
+    setPan(nextPan);
+    setZoom(nextZoom);
+  }
+
   function setZoomAnimated(updater: (current: number) => number) {
-    startViewportAnimation();
-    setZoom((z) => updater(z));
+    zoomAroundViewportCenter(updater(zoom), true);
   }
 
   function isLatestTileVisible(margin = AUTO_FOLLOW_MARGIN) {
@@ -174,10 +267,10 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
     if (!el) return;
     const cw = el.clientWidth;
     const ch = el.clientHeight;
-    if (!cw || !ch || !width || !height) return;
+    if (!cw || !ch || !occupiedWidth || !occupiedHeight) return;
     const fz = Math.max(
       0.3,
-      Math.min(1.0, Math.min(cw / width, ch / height) * 0.85),
+      Math.min(1.0, Math.min(cw / occupiedWidth, ch / occupiedHeight) * 0.85),
     );
     fitZoomRef.current = fz;
     centerOnLatest(fz);
@@ -205,7 +298,8 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
     if (!latestKey || latestKey === handledLatestKeyRef.current) return;
     handledLatestKeyRef.current = latestKey;
     if (!isLatestTileVisible()) {
-      centerOnLatest(fitZoomRef.current);
+      // Keep current zoom while following newly placed tiles.
+      centerOnLatest(zoom);
     }
   }, [
     state.placed,
@@ -288,7 +382,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       if (pinchDistRef.current > 0) {
         const ratio = dist / pinchDistRef.current;
-        setZoom((z) => Math.max(0.3, Math.min(2.5, z * ratio)));
+        zoomAroundViewportCenter(zoom * ratio);
       }
       pinchDistRef.current = dist;
     } else if (activePointers.current.size === 1 && panOriginRef.current) {
@@ -465,7 +559,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
     e.preventDefault();
     stopViewportAnimation();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom((z) => Math.max(0.3, Math.min(2.5, z * delta)));
+    zoomAroundViewportCenter(zoom * delta);
   }
 
   return (

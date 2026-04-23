@@ -282,7 +282,7 @@ export function Hand({
             >
               {state.bag.length === 0
                 ? "跳过"
-                : `摘牌 - 剩 ${state.bag.length}`}
+                : `摸牌 - 剩 ${state.bag.length}`}
             </button>
           )}
         </div>

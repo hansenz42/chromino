@@ -39,7 +39,7 @@ export default function LocalGamePage() {
     if (!state || state.phase !== "playing") return;
     const cur = state.players[state.currentPlayerIndex];
     if (cur.isAI) {
-      const t = setTimeout(() => stepAIIfNeeded(), 1000);
+      const t = setTimeout(() => stepAIIfNeeded(), 3000);
       return () => clearTimeout(t);
     }
   }, [state, stepAIIfNeeded]);
