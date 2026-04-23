@@ -1,5 +1,5 @@
 "use client";
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import type { GameState, Move, Orientation } from "@/lib/types";
 import { useGameStore } from "@/lib/game-store";
@@ -9,6 +9,8 @@ import { BTN_DEFAULT } from "@/lib/ui-classes";
 
 const CELL = 48;
 const HAND_CELL = 32;
+// Each tile cell in the hand is HAND_CELL*3 wide, plus gap-2 (8px)
+const TILE_STEP = HAND_CELL * 3 + 8;
 
 export function Hand({
   state,
@@ -44,8 +46,47 @@ export function Hand({
   } | null>(null);
   const dragBlockRef = useRef(false);
   const floatingRef = useRef<HTMLDivElement>(null);
+  const handScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  function refreshHandScrollState() {
+    const el = handScrollRef.current;
+    if (!el) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+    const overflow = el.scrollWidth - el.clientWidth;
+    if (overflow < 1) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }
+
+  // Snap to a tile boundary: round current target to nearest multiple of TILE_STEP
+  function snapTarget(raw: number) {
+    return Math.round(raw / TILE_STEP) * TILE_STEP;
+  }
+
+  function scrollHand(direction: "left" | "right") {
+    const el = handScrollRef.current;
+    if (!el) return;
+    const maxScrollLeft = el.scrollWidth - el.clientWidth;
+    const step = Math.max(
+      TILE_STEP,
+      Math.floor(el.clientWidth / TILE_STEP) * TILE_STEP,
+    );
+    const raw = el.scrollLeft + (direction === "left" ? -step : step);
+    const target = Math.max(0, Math.min(maxScrollLeft, snapTarget(raw)));
+    el.scrollTo({ left: target, behavior: "smooth" });
+  }
 
   const me = state.players.find((p) => p.id === selfPlayerId);
+  const handCount = me?.hand.length ?? 0;
 
   useLayoutEffect(() => {
     if (!dragging || !floatingRef.current) return;
@@ -69,6 +110,22 @@ export function Hand({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging?.tileId, dragging?.cancelling]);
+
+  useEffect(() => {
+    refreshHandScrollState();
+    const el = handScrollRef.current;
+    if (!el) return;
+
+    const onScroll = () => refreshHandScrollState();
+    const onResize = () => refreshHandScrollState();
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [handCount]);
 
   if (!me) return null;
 
@@ -230,66 +287,89 @@ export function Hand({
           )}
         </div>
       </div>
-      <div
-        className="flex gap-2 flex-nowrap overflow-x-auto overflow-y-hidden items-center"
-        style={{ height: HAND_CELL * 3 }}
-      >
-        {me.hand.map((t) => {
-          const isSel = selected?.tileId === t.id;
-          const isDraggingThis = dragging?.tileId === t.id;
-          return (
-            <div
-              key={t.id}
-              className={clsx(
-                "flex items-center justify-center shrink-0",
-                isDraggingThis ? "opacity-30" : "opacity-100",
-              )}
-              style={{
-                width: HAND_CELL * 3,
-                height: HAND_CELL * 3,
-              }}
-            >
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="w-4 shrink-0 flex items-center justify-center text-fg disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+          aria-label="向左滚动手牌"
+          disabled={!canScrollLeft}
+          onClick={() => scrollHand("left")}
+        >
+          ←
+        </button>
+        <div
+          ref={handScrollRef}
+          className="flex-1 min-w-0 flex gap-2 flex-nowrap overflow-x-auto overflow-y-hidden items-center"
+          style={{ height: HAND_CELL * 3 }}
+        >
+          {me.hand.map((t) => {
+            const isSel = selected?.tileId === t.id;
+            const isDraggingThis = dragging?.tileId === t.id;
+            return (
               <div
-                onPointerDown={makeTilePointerDown(t.id)}
+                key={t.id}
                 className={clsx(
-                  "flex",
-                  state.noAssistance && isMyTurn ? "touch-none" : "touch-auto",
+                  "flex items-center justify-center shrink-0",
+                  isDraggingThis ? "opacity-30" : "opacity-100",
                 )}
+                style={{
+                  width: HAND_CELL * 3,
+                  height: HAND_CELL * 3,
+                }}
               >
-                <TileSvg
-                  tile={t}
-                  orientation={
-                    isSel
-                      ? selected!.orientation
-                      : (tileOrientations[t.id]?.orientation ?? "h")
-                  }
-                  flip={
-                    isSel
-                      ? selected!.flip
-                      : (tileOrientations[t.id]?.flip ?? false)
-                  }
-                  size={HAND_CELL}
-                  selected={isSel}
-                  onClick={() => {
-                    if (!isMyTurn) return;
-                    if (dragBlockRef.current) {
-                      dragBlockRef.current = false;
-                      return;
+                <div
+                  onPointerDown={makeTilePointerDown(t.id)}
+                  className={clsx(
+                    "flex",
+                    state.noAssistance && isMyTurn
+                      ? "touch-none"
+                      : "touch-auto",
+                  )}
+                >
+                  <TileSvg
+                    tile={t}
+                    orientation={
+                      isSel
+                        ? selected!.orientation
+                        : (tileOrientations[t.id]?.orientation ?? "h")
                     }
-                    if (isSel) select(null);
-                    else
-                      select({ tileId: t.id, flip: false, orientation: "h" });
-                  }}
-                />
+                    flip={
+                      isSel
+                        ? selected!.flip
+                        : (tileOrientations[t.id]?.flip ?? false)
+                    }
+                    size={HAND_CELL}
+                    selected={isSel}
+                    onClick={() => {
+                      if (!isMyTurn) return;
+                      if (dragBlockRef.current) {
+                        dragBlockRef.current = false;
+                        return;
+                      }
+                      if (isSel) select(null);
+                      else
+                        select({ tileId: t.id, flip: false, orientation: "h" });
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className="w-4 shrink-0 flex items-center justify-center text-fg disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+          aria-label="向右滚动手牌"
+          disabled={!canScrollRight}
+          onClick={() => scrollHand("right")}
+        >
+          →
+        </button>
       </div>
       {dragging && dragTile && (
         <div
           ref={floatingRef}
-          className="fixed pointer-events-none z-[9999] opacity-85"
+          className="fixed pointer-events-none z-9999 opacity-85"
           onTransitionEnd={(e) => {
             if (e.propertyName === "left") clearDrag();
           }}

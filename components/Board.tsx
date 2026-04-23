@@ -11,6 +11,8 @@ import { COLOR_HEX, WILD_BG, WILD_STROKE } from "@/lib/colors";
 import { useGameStore } from "@/lib/game-store";
 
 const CELL = 48;
+const AUTO_FOLLOW_MARGIN = 12;
+const VIEWPORT_ANIM_MS = 500;
 
 const ZOOM_BTN_CLS =
   "inline-flex items-center justify-center rounded-md border border-border-2 " +
@@ -34,6 +36,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
   const { selected, play, setBoardZoom, dragging } = useGameStore();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isViewportAnimating, setIsViewportAnimating] = useState(false);
   const [hoverAnchor, setHoverAnchor] = useState<{
     x: number;
     y: number;
@@ -56,6 +59,8 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
   const boardPointerIds = useRef(new Set<number>());
   // Last fit zoom level, used by reset button
   const fitZoomRef = useRef(1);
+  const handledLatestKeyRef = useRef<string | null>(null);
+  const viewportAnimTimerRef = useRef<number | null>(null);
 
   const { minX, minY, maxX, maxY } = useMemo(() => {
     const keys = Object.keys(state.board);
@@ -81,6 +86,80 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
   const width = widthCells * CELL;
   const height = heightCells * CELL;
 
+  function stopViewportAnimation() {
+    if (viewportAnimTimerRef.current !== null) {
+      window.clearTimeout(viewportAnimTimerRef.current);
+      viewportAnimTimerRef.current = null;
+    }
+    setIsViewportAnimating(false);
+  }
+
+  function startViewportAnimation() {
+    if (viewportAnimTimerRef.current !== null) {
+      window.clearTimeout(viewportAnimTimerRef.current);
+    }
+    setIsViewportAnimating(true);
+    viewportAnimTimerRef.current = window.setTimeout(() => {
+      setIsViewportAnimating(false);
+      viewportAnimTimerRef.current = null;
+    }, VIEWPORT_ANIM_MS);
+  }
+
+  function centerOnLatest(targetZoom: number, animated = true) {
+    const latest = state.placed.at(-1);
+    const el = containerRef.current;
+    if (animated) startViewportAnimation();
+    setZoom(targetZoom);
+    if (!latest || !el) {
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    const cw = el.clientWidth;
+    const ch = el.clientHeight;
+    const isH = latest.orientation === "h";
+    const wx = (latest.x + (isH ? 1.5 : 0.5)) * CELL - minX * CELL;
+    const wy = (latest.y + (isH ? 0.5 : 1.5)) * CELL - minY * CELL;
+    const wrapperLeft = Math.max(0, (cw - width) / 2);
+    const wrapperTop = Math.max(0, (ch - height) / 2);
+    setPan({
+      x: cw / 2 - wrapperLeft - width / 2 - (wx - width / 2) * targetZoom,
+      y: ch / 2 - wrapperTop - height / 2 - (wy - height / 2) * targetZoom,
+    });
+  }
+
+  function setZoomAnimated(updater: (current: number) => number) {
+    startViewportAnimation();
+    setZoom((z) => updater(z));
+  }
+
+  function isLatestTileVisible(margin = AUTO_FOLLOW_MARGIN) {
+    const latest = state.placed.at(-1);
+    const el = containerRef.current;
+    if (!latest || !el) return true;
+    const cw = el.clientWidth;
+    const ch = el.clientHeight;
+    const tileW = latest.orientation === "h" ? 3 * CELL : CELL;
+    const tileH = latest.orientation === "h" ? CELL : 3 * CELL;
+    const leftLocal = latest.x * CELL - minX * CELL;
+    const topLocal = latest.y * CELL - minY * CELL;
+    const rightLocal = leftLocal + tileW;
+    const bottomLocal = topLocal + tileH;
+    const wrapperLeft = Math.max(0, (cw - width) / 2);
+    const wrapperTop = Math.max(0, (ch - height) / 2);
+    const centerX = wrapperLeft + width / 2 + pan.x;
+    const centerY = wrapperTop + height / 2 + pan.y;
+    const left = centerX + (leftLocal - width / 2) * zoom;
+    const top = centerY + (topLocal - height / 2) * zoom;
+    const right = centerX + (rightLocal - width / 2) * zoom;
+    const bottom = centerY + (bottomLocal - height / 2) * zoom;
+    return (
+      left >= margin &&
+      top >= margin &&
+      right <= cw - margin &&
+      bottom <= ch - margin
+    );
+  }
+
   const selectedTile = selectedTileId !== null ? tiles[selectedTileId] : null;
   const candidates = useMemo(() => {
     if (!selectedTile || !selected) return [];
@@ -101,21 +180,45 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
       Math.min(1.0, Math.min(cw / width, ch / height) * 0.85),
     );
     fitZoomRef.current = fz;
-    setZoom(fz);
+    centerOnLatest(fz);
     const latest = state.placed.at(-1);
-    if (latest) {
-      const isH = latest.orientation === "h";
-      const wx = (latest.x + (isH ? 1.5 : 0.5)) * CELL - minX * CELL;
-      const wy = (latest.y + (isH ? 0.5 : 1.5)) * CELL - minY * CELL;
-      const wrapperLeft = Math.max(0, (cw - width) / 2);
-      const wrapperTop = Math.max(0, (ch - height) / 2);
-      setPan({
-        x: cw / 2 - wrapperLeft - width / 2 - (wx - width / 2) * fz,
-        y: ch / 2 - wrapperTop - height / 2 - (wy - height / 2) * fz,
-      });
-    }
+    handledLatestKeyRef.current = latest
+      ? `${state.placed.length}:${latest.tileId}:${latest.x}:${latest.y}:${latest.orientation}`
+      : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (viewportAnimTimerRef.current !== null) {
+        window.clearTimeout(viewportAnimTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Smart follow: only re-center when latest tile leaves current viewport.
+  useEffect(() => {
+    const latest = state.placed.at(-1);
+    const latestKey = latest
+      ? `${state.placed.length}:${latest.tileId}:${latest.x}:${latest.y}:${latest.orientation}`
+      : null;
+    if (!latestKey || latestKey === handledLatestKeyRef.current) return;
+    handledLatestKeyRef.current = latestKey;
+    if (!isLatestTileVisible()) {
+      centerOnLatest(fitZoomRef.current);
+    }
+  }, [
+    state.placed,
+    minX,
+    minY,
+    width,
+    height,
+    pan.x,
+    pan.y,
+    zoom,
+    centerOnLatest,
+    isLatestTileVisible,
+  ]);
 
   // Keep the game store in sync so Hand can size the drag ghost correctly
   useEffect(() => {
@@ -152,6 +255,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
   // ── Pointer handlers (pan + pinch-zoom, works with mouse and touch) ──────
 
   function onBoardPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    stopViewportAnimation();
     boardPointerIds.current.add(e.pointerId);
     activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -359,6 +463,7 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault();
+    stopViewportAnimation();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
     setZoom((z) => Math.max(0.3, Math.min(2.5, z * delta)));
   }
@@ -386,9 +491,14 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
       onWheel={onWheel}
     >
       <div
-        className="mx-auto origin-center"
+        className={`mx-auto origin-center ${
+          isViewportAnimating
+            ? "transition-transform duration-500 ease-out"
+            : ""
+        }`}
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          willChange: isViewportAnimating ? "transform" : undefined,
           width,
           height,
         }}
@@ -568,43 +678,21 @@ export function Board({ state, tiles, selectedTileId, onPlay }: BoardProps) {
       <div className="absolute bottom-3 right-3 flex flex-col gap-1.5">
         <button
           className={ZOOM_BTN_CLS + " text-lg"}
-          onClick={() => setZoom((z) => Math.min(2.5, z * 1.2))}
+          onClick={() => setZoomAnimated((z) => Math.min(2.5, z * 1.2))}
         >
           +
         </button>
         <button
           className={ZOOM_BTN_CLS + " text-lg"}
-          onClick={() => setZoom((z) => Math.max(0.3, z / 1.2))}
+          onClick={() => setZoomAnimated((z) => Math.max(0.3, z / 1.2))}
         >
           −
         </button>
         <button
-          className={ZOOM_BTN_CLS + " text-[13px] !px-2.5"}
+          className={ZOOM_BTN_CLS + " text-[13px] px-2.5!"}
           title="Reset view"
           onClick={() => {
-            const z = fitZoomRef.current;
-            const latest = state.placed.at(-1);
-            if (!latest || !containerRef.current) {
-              setZoom(z);
-              setPan({ x: 0, y: 0 });
-              return;
-            }
-            const cw = containerRef.current.clientWidth;
-            const ch = containerRef.current.clientHeight;
-            const isH = latest.orientation === "h";
-            // Tile center in wrapper-local pixels
-            const wx = (latest.x + (isH ? 1.5 : 0.5)) * CELL - minX * CELL;
-            const wy = (latest.y + (isH ? 0.5 : 1.5)) * CELL - minY * CELL;
-            // CSS `margin: 0 auto` resolves margin-left to 0 when wrapper > container.
-            // wrapperLeft is 0 when overflowing, (cw-width)/2 when smaller.
-            const wrapperLeft = Math.max(0, (cw - width) / 2);
-            const wrapperTop = Math.max(0, (ch - height) / 2);
-            // screen_x = wrapperLeft + width/2 + panX + (wx - width/2) * z  => solve for panX:
-            setZoom(z);
-            setPan({
-              x: cw / 2 - wrapperLeft - width / 2 - (wx - width / 2) * z,
-              y: ch / 2 - wrapperTop - height / 2 - (wy - height / 2) * z,
-            });
+            centerOnLatest(fitZoomRef.current);
           }}
         >
           <svg
