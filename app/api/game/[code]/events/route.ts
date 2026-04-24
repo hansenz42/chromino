@@ -9,7 +9,7 @@ const RETRY_MS = 1000;
  * SSE stream for game state updates.
  *
  * To avoid platform hard timeouts, the stream is intentionally rotated every
- * 120 seconds. The client should reconnect immediately and continue seamlessly.
+ * 240 seconds. The client should reconnect immediately and continue seamlessly.
  */
 export async function GET(
   _req: Request,
