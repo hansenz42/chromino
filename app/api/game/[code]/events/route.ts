@@ -2,7 +2,7 @@ import { loadGame } from "@/lib/kv";
 
 const POLL_INTERVAL_MS = 500;
 const HEARTBEAT_MS = 25_000;
-const MAX_STREAM_MS = 120_000;
+const MAX_STREAM_MS = 240_000;
 const RETRY_MS = 1000;
 
 /**
