@@ -1,7 +1,7 @@
 services:
   chromino:
     container_name: chromino
-    image: ${CHROMINO_IMAGE:-chromino:latest}
+    image: registry.cn-hangzhou.aliyuncs.com/assen-private/chromino:latest
     depends_on:
       redis:
         condition: service_healthy
