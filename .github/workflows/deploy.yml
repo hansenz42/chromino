@@ -29,7 +29,8 @@ jobs:
               id: meta
               uses: docker/metadata-action@v5
               with:
-                  images: ${{ vars.DEPLOY_REGISTRY_URL }}/${{ vars.DEPLOY_REGISTRY_NAMESPACE}}/${{ env.IMAGE_NAME }}
+                  images: ${{ vars.DEPLOY_REGISTRY_URL }}/${{ vars.DEPLOY_REGISTRY_NAMESPACE}}/${{
+                      env.IMAGE_NAME }}
                   tags: |
                       type=sha,prefix=master-
                       type=raw,value=latest
@@ -89,7 +90,7 @@ jobs:
                         -u "$DEPLOY_REGISTRY_USERNAME" --password-stdin
 
                       # Export image tag so docker-compose.yml picks it up
-                      export CHROMINO_IMAGE="${DEPLOY_REGISTRY_URL}/${DEPLOY_REGISTRY_NAMESPACE}/chromino:master-${GITHUB_SHA::8}"
+                      export CHROMINO_IMAGE="${DEPLOY_REGISTRY_URL}/${DEPLOY_REGISTRY_NAMESPACE}/chromino:master-${GITHUB_SHA::7}"
 
                       # Deploy
                       chmod +x deploy.sh
